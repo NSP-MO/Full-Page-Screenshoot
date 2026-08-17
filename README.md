@@ -2,6 +2,9 @@
 
 A high-performance Chromium / Brave browser extension designed for one-click, pixel-perfect full webpage screen captures. Built on native browser compositor APIs with automatic sequential scrolling, universal single-page application (SPA) container detection, and an integrated preview viewer featuring continuous single-page and paginated multi-page A4 PDF export, lossless PNG downloading, clipboard copying, and redaction tools (Gaussian Blur and Mosaic Censor).
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Full Page Screenshoot Demo" width="100%">
+</p>
 
 ---
 
@@ -44,6 +47,8 @@ A high-performance Chromium / Brave browser extension designed for one-click, pi
 ```
 f:/full-page-screenshot/
 ├── manifest.json              # Manifest V3 extension configuration
+├── assets/
+│   └── demo.gif               # Animated demonstration recording
 ├── background/
 │   └── service-worker.js      # Background scheduler, rate limiting, and session persistence
 ├── content/
