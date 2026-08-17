@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Full Page Screenshoot",
+  "version": "1.0.0",
+  "description": "One-click high-resolution full webpage screenshoot capture. Scrolls and captures entire page with native browser rendering, then opens an instant preview with Copy, PNG, and PDF save options.",
+  "author": "NSP-MO",
+  "homepage_url": "https://github.com/NSP-MO/Full-Page-Screenshoot",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Take Full Page Screenshoot"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "viewer/viewer.html",
+        "icons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

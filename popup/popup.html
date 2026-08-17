@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Full Page Screenshoot</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-wrapper">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+        <div>
+          <h1 class="title">Full Page Screenshoot</h1>
+          <p class="subtitle">Chromium / Brave Edition</p>
+        </div>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <a href="https://github.com/NSP-MO/Full-Page-Screenshoot" target="_blank" rel="noopener noreferrer" class="icon-btn" title="GitHub Repository by NSP-MO">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+          </svg>
+        </a>
+        <button id="btnSettingsToggle" class="icon-btn" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Action Buttons -->
+    <div id="actionView" class="section">
+      <button id="btnFullPage" class="btn btn-primary">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="7 8 3 12 7 16"></polyline>
+          <polyline points="17 8 21 12 17 16"></polyline>
+          <line x1="14" y1="4" x2="10" y2="20"></line>
+        </svg>
+        <div class="btn-text-block">
+          <span class="btn-title">Full Page Screenshoot</span>
+          <span class="btn-desc">Scrolls & captures complete entire page</span>
+        </div>
+      </button>
+
+      <div class="btn-grid">
+        <button id="btnVisibleArea" class="btn btn-secondary">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+          <div class="btn-text-block">
+            <span class="btn-title">Visible Area</span>
+            <span class="btn-desc">Current viewport only</span>
+          </div>
+        </button>
+
+        <button id="btnSelectedArea" class="btn btn-secondary">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 3a2 2 0 0 0-2 2"></path>
+            <path d="M19 3a2 2 0 0 1 2 2"></path>
+            <path d="M5 21a2 2 0 0 1-2-2"></path>
+            <path d="M19 21a2 2 0 0 0 2-2"></path>
+            <path d="M9 3h1"></path><path d="M14 3h1"></path>
+            <path d="M9 21h1"></path><path d="M14 21h1"></path>
+            <path d="M3 9v1"></path><path d="M3 14v1"></path>
+            <path d="M21 9v1"></path><path d="M21 14v1"></path>
+          </svg>
+          <div class="btn-text-block">
+            <span class="btn-title">Selected Area</span>
+            <span class="btn-desc">Crop custom rectangle</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Progress View -->
+    <div id="progressView" class="progress-card hidden">
+      <div class="spinner"></div>
+      <div class="progress-info">
+        <span id="progressTitle" class="progress-title">Capturing Page...</span>
+        <span id="progressStatus" class="progress-status">Preparing scroll engine...</span>
+      </div>
+      <div class="progress-bar-track">
+        <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div id="settingsView" class="settings-panel hidden">
+      <div class="settings-header">
+        <h2>Capture Preferences</h2>
+      </div>
+
+      <div class="form-group">
+        <label for="formatSelect">Default Format</label>
+        <select id="formatSelect" class="form-select">
+          <option value="png">PNG (Lossless Quality)</option>
+          <option value="jpeg">JPEG (Compressed)</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="qualityGroup">
+        <div class="label-with-val">
+          <label for="qualityRange">JPEG Quality</label>
+          <span id="qualityVal">92%</span>
+        </div>
+        <input type="range" id="qualityRange" class="form-range" min="50" max="100" value="92">
+      </div>
+
+      <div class="form-group">
+        <div class="label-with-val">
+          <label for="delayRange">Scroll Delay</label>
+          <span id="delayVal">120ms</span>
+        </div>
+        <input type="range" id="delayRange" class="form-range" min="50" max="1000" step="50" value="120">
+      </div>
+
+      <div class="form-group-checkbox">
+        <input type="checkbox" id="hideFixedCheckbox" checked>
+        <label for="hideFixedCheckbox">Hide sticky & fixed headers on scroll</label>
+      </div>
+    </div>
+
+    <!-- Status / Error Notification -->
+    <div id="statusMessage" class="status-message hidden"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

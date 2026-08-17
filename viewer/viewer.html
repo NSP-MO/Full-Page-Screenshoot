@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Full Page Screenshoot - Preview</title>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Control Bar -->
+    <header class="top-bar">
+      <div class="page-meta">
+        <div class="app-brand">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          <span class="brand-name">Full Page Screenshoot</span>
+        </div>
+        <div class="divider-v"></div>
+        <div class="target-info">
+          <h1 id="pageTitle" class="target-title">Loading screenshot...</h1>
+          <span id="pageUrl" class="target-url">-</span>
+        </div>
+      </div>
+
+      <!-- Zoom & Viewport Controls -->
+      <div class="view-controls">
+        <button id="btnZoomOut" class="tool-btn" title="Zoom Out (-)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+        </button>
+        <span id="zoomLevelText" class="zoom-text">100%</span>
+        <button id="btnZoomIn" class="tool-btn" title="Zoom In (+)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+        </button>
+        <button id="btnFitWidth" class="tool-btn-text" title="Fit to Window Width">Fit Width</button>
+        <button id="btnActualSize" class="tool-btn-text" title="Actual Size 100%">1:1</button>
+      </div>
+
+      <!-- Action & Export Controls -->
+      <div class="action-controls">
+        <span id="resolutionBadge" class="badge-resolution">0 x 0 px</span>
+
+        <a href="https://github.com/NSP-MO/Full-Page-Screenshoot" target="_blank" rel="noopener noreferrer" class="btn-action btn-secondary" title="GitHub Repository by NSP-MO" style="text-decoration: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+          </svg>
+          <span>GitHub</span>
+        </a>
+
+        <button id="btnCopyClipboard" class="btn-action btn-secondary" title="Copy Flattened Image to Clipboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span>Copy</span>
+        </button>
+
+        <div class="download-dropdown">
+          <button id="btnSaveImage" class="btn-action btn-primary" title="Save as High-Resolution PNG">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Save PNG</span>
+          </button>
+          <button id="btnDropdownToggle" class="btn-action btn-primary btn-dropdown-toggle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+
+          <div id="exportDropdownMenu" class="dropdown-menu hidden">
+            <button id="btnSavePngOption" class="dropdown-item">PNG Image (.png)</button>
+            <button id="btnSavePdfContinuous" class="dropdown-item">Single-Page Continuous PDF (.pdf)</button>
+            <button id="btnSavePdfA4" class="dropdown-item">Multi-Page Paginated A4 PDF (.pdf)</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Floating Annotation Toolbar -->
+    <div class="annotation-toolbar" id="annotationToolbar">
+      <div class="tool-group">
+        <button class="anno-btn active" data-tool="select" title="Pan / View Mode (V)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 18 3-7 7-3L3 3z"></path></svg>
+        </button>
+        <button class="anno-btn" data-tool="blur" title="Smooth Gaussian Blur (G)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"></circle>
+            <circle cx="12" cy="12" r="5" stroke-dasharray="2 2"></circle>
+            <circle cx="12" cy="12" r="1.5"></circle>
+          </svg>
+        </button>
+        <button class="anno-btn" data-tool="mosaic" title="Pixelated Mosaic Censor (M)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+        </button>
+        <button class="anno-btn" data-tool="rect" title="Rectangle Box (R)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+        </button>
+        <button class="anno-btn" data-tool="arrow" title="Arrow Pointer (A)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"></line><polyline points="10 5 19 5 19 14"></polyline></svg>
+        </button>
+        <button class="anno-btn" data-tool="pen" title="Freehand Pen (P)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+        </button>
+        <button class="anno-btn" data-tool="text" title="Text Note (T)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+        </button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Color Palette -->
+      <div class="color-palette">
+        <span class="color-dot active" style="background-color: #ffffff;" data-color="#ffffff" title="Pure White"></span>
+        <span class="color-dot" style="background-color: #cbd5e1;" data-color="#cbd5e1" title="Soft Slate"></span>
+        <span class="color-dot" style="background-color: #64748b;" data-color="#64748b" title="Medium Charcoal"></span>
+        <span class="color-dot" style="background-color: #0f172a;" data-color="#0f172a" title="Deep Onyx"></span>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Stroke Thickness -->
+      <div class="stroke-selector">
+        <button class="stroke-btn" data-size="2" title="Thin (2px)"><span class="stroke-preview" style="width: 4px; height: 4px;"></span></button>
+        <button class="stroke-btn active" data-size="4" title="Medium (4px)"><span class="stroke-preview" style="width: 7px; height: 7px;"></span></button>
+        <button class="stroke-btn" data-size="8" title="Thick (8px)"><span class="stroke-preview" style="width: 10px; height: 10px;"></span></button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="tool-group">
+        <button id="btnUndo" class="anno-btn" title="Undo (Ctrl+Z)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>
+        </button>
+        <button id="btnClearAnno" class="anno-btn" title="Clear Annotations">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Screenshot Canvas Workspace -->
+    <main class="workspace" id="workspace">
+      <div id="loadingState" class="loading-state">
+        <div class="spinner-large"></div>
+        <p id="loadingStatusText">Stitching slices into master canvas...</p>
+      </div>
+
+      <div id="canvasWrapper" class="canvas-wrapper hidden">
+        <canvas id="screenshotCanvas"></canvas>
+        <canvas id="annotationCanvas"></canvas>
+      </div>
+    </main>
+
+    <!-- Floating Feedback Toast -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="viewer.js"></script>
+</body>
+</html>

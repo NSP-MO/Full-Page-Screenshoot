@@ -1,0 +1,522 @@
+/* Viewer Stylesheet - VS Code Dark Theme (#1f1f1f Palette) */
+
+:root {
+  --bg-darkest: #181818;
+  --bg-workspace: #1f1f1f;
+  --bg-bar: #252526;
+  --bg-card: #2d2d2d;
+  --bg-hover: #37373d;
+  --bg-active: #094771;
+  --text-main: #cccccc;
+  --text-heading: #ffffff;
+  --text-muted: #858585;
+  --text-dim: #6e6e6e;
+  --accent: #007acc;
+  --accent-hover: #1177bb;
+  --accent-blue: #0e639c;
+  --border: #333333;
+  --border-light: #3c3c3c;
+  --border-focus: #007fd4;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-workspace);
+  color: var(--text-main);
+  font-family: var(--font-family);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+}
+
+/* Top Bar - VS Code Header Style */
+.top-bar {
+  height: 52px;
+  background-color: var(--bg-bar);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 100;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.page-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 35%;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+}
+
+.brand-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.brand-name {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.2px;
+  color: var(--text-heading);
+}
+
+.divider-v {
+  width: 1px;
+  height: 20px;
+  background-color: var(--border-light);
+}
+
+.target-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.target-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.target-url {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Viewport Controls */
+.view-controls {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-darkest);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  padding: 2px 4px;
+  gap: 2px;
+}
+
+.tool-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tool-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-heading);
+}
+
+.tool-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.zoom-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+  min-width: 40px;
+  text-align: center;
+  user-select: none;
+}
+
+.tool-btn-text {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tool-btn-text:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-heading);
+}
+
+/* Action Controls */
+.action-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-resolution {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.btn-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.btn-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-secondary {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-heading);
+  border-color: #555555;
+}
+
+.btn-primary {
+  background-color: var(--accent-blue);
+  border: 1px solid var(--accent);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent);
+}
+
+/* Download Dropdown */
+.download-dropdown {
+  position: relative;
+  display: flex;
+}
+
+.download-dropdown .btn-primary {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.btn-dropdown-toggle {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.2) !important;
+  padding: 6px 7px !important;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background-color: var(--bg-bar);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  padding: 4px;
+  min-width: 250px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 1000;
+}
+
+.dropdown-item {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 12px;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background-color: var(--bg-active);
+  color: #ffffff;
+}
+
+/* Floating Annotation Toolbar - VS Code Docked Style */
+.annotation-toolbar {
+  position: fixed;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(37, 37, 38, 0.95);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  z-index: 95;
+  user-select: none;
+}
+
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.anno-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.anno-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.anno-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-heading);
+}
+
+.anno-btn.active {
+  background-color: var(--bg-active);
+  color: #ffffff;
+  border: 1px solid var(--accent);
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background-color: var(--border-light);
+  margin: 0 3px;
+}
+
+/* Color Palette */
+.color-palette {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-dot:hover {
+  transform: scale(1.15);
+}
+
+.color-dot.active {
+  border-color: #ffffff;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Stroke Selector */
+.stroke-selector {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stroke-btn {
+  background: transparent;
+  border: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.stroke-preview {
+  background-color: var(--text-muted);
+  border-radius: 50%;
+  display: block;
+}
+
+.stroke-btn:hover .stroke-preview {
+  background-color: var(--text-heading);
+}
+
+.stroke-btn.active {
+  background-color: var(--bg-hover);
+}
+
+.stroke-btn.active .stroke-preview {
+  background-color: var(--accent);
+}
+
+/* Main Workspace */
+.workspace {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 60px 20px 40px 20px;
+  background-color: var(--bg-workspace);
+}
+
+.loading-state {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.spinner-large {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+#loadingStatusText {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.canvas-wrapper {
+  position: relative;
+  display: inline-block;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-light);
+  border-radius: 2px;
+  overflow: visible;
+  background-color: #ffffff;
+  transform-origin: top center;
+  transition: transform 0.1s ease-out;
+}
+
+#screenshotCanvas {
+  display: block;
+  max-width: none;
+}
+
+#annotationCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+/* Toast Notification - VS Code Info Banner Style */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--bg-bar);
+  color: var(--text-heading);
+  border: 1px solid var(--border-focus);
+  padding: 8px 18px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+  z-index: 9999;
+  letter-spacing: 0.2px;
+  transition: opacity 0.3s ease;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Print Optimization */
+@media print {
+  body {
+    background: #ffffff;
+    height: auto;
+    overflow: visible;
+  }
+  .top-bar, .annotation-toolbar, .toast {
+    display: none !important;
+  }
+  .workspace {
+    padding: 0;
+    background: none;
+    overflow: visible;
+  }
+  .canvas-wrapper {
+    box-shadow: none;
+    border: none;
+    transform: none !important;
+  }
+}

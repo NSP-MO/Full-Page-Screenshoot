@@ -1,0 +1,11 @@
+# Execution Directory
+exec/
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+
+# Operating System & Cache Files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
