@@ -38,7 +38,7 @@ A high-performance Chromium / Brave browser extension designed for one-click, pi
 - **JPEG Export**: Configurable quality level.
 - **Single-Page Continuous PDF**: Compliant standard PDF 1.4 containing the entire webpage in one continuous canvas stream.
 - **Multi-Page Paginated A4 PDF**: Divides long screenshots into standard A4 pages with printable margins for documentation and printing.
-- **Direct Clipboard Copy**: Copies high-resolution PNG data directly to system clipboard via the Clipboard API.
+- **Clipboard Copy**: Copies the full-resolution PNG directly to the system clipboard for immediate pasting.
 
 ---
 
@@ -54,23 +54,15 @@ f:/full-page-screenshot/
 ├── content/
 │   ├── content.js             # Universal scroller engine and DOM measurement
 │   └── content.css            # Non-blocking scrollbar suppression styles
-├── popup/
-│   ├── popup.html             # Extension popup interface
-│   ├── popup.css              # Popup styling (VS Code theme)
-│   └── popup.js               # Capture trigger and preference management
 ├── viewer/
 │   ├── viewer.html            # Full-page preview workspace
 │   ├── viewer.css             # Viewer interface styling (VS Code #1f1f1f)
 │   └── viewer.js              # Canvas stitching, Gaussian blur, PDF generator, and export
-├── icons/
-│   ├── icon16.png
-│   ├── icon32.png
-│   ├── icon48.png
-│   └── icon128.png
-└── exec/
-    ├── generate_icons.py       # Icon generator script
-    ├── verify_extension.py     # Integrity validation script
-    └── run_setup.ipynb         # Task execution notebook
+└── icons/
+    ├── icon16.png
+    ├── icon32.png
+    ├── icon48.png
+    └── icon128.png
 ```
 
 ---
@@ -94,4 +86,4 @@ f:/full-page-screenshot/
 1. Open any webpage or document (e.g. GitHub repository, Google Docs, Gmail thread).
 2. Click the **Full Page Screenshoot** icon in the browser toolbar.
 3. The extension will automatically scroll and capture all slices.
-4. A new preview tab will open instantly with zoom, Gaussian blur/mosaic redaction tools, and export options (PNG, Continuous PDF, Multi-Page A4 PDF, Copy to Clipboard).
+4. A new preview tab will open with the screenshot copied to your clipboard, offering zoom, redaction tools, and export options (PNG, Continuous PDF, Multi-Page A4 PDF, Copy to Clipboard).

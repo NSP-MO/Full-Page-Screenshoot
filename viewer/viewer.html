@@ -42,7 +42,7 @@
       <div class="action-controls">
         <span id="resolutionBadge" class="badge-resolution">0 x 0 px</span>
 
-        <button id="btnCopyClipboard" class="btn-action btn-secondary" title="Copy Flattened Image to Clipboard">
+        <button id="btnCopyClipboard" class="btn-action btn-secondary" title="Copy to Clipboard">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -153,6 +153,25 @@
 
     <!-- Floating Feedback Toast -->
     <div id="toast" class="toast hidden"></div>
+
+    <!-- Bottom Status Bar -->
+    <footer class="bottom-bar">
+      <div class="footer-left">
+        <span class="footer-label">Full Page Screenshoot</span>
+      </div>
+      <div class="footer-right">
+        <a href="https://ko-fi.com/nspmo" target="_blank" rel="noopener noreferrer" class="footer-support-link" id="kofiLinkViewer" title="Support me on Ko-fi">
+          <svg class="support-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+            <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+            <line x1="6" y1="1" x2="6" y2="4"></line>
+            <line x1="10" y1="1" x2="10" y2="4"></line>
+            <line x1="14" y1="1" x2="14" y2="4"></line>
+          </svg>
+          <span>Support me on Ko-fi</span>
+        </a>
+      </div>
+    </footer>
   </div>
 
   <script src="viewer.js"></script>

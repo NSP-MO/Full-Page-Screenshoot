@@ -98,6 +98,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Auto-fit to width on initial display
     fitToWidth();
+
+    // Automatically copy screenshot to clipboard upon completion
+    copyToClipboard(true);
   } catch (err) {
     console.error(err);
     showError('Failed to render screenshoot: ' + err.message);
@@ -129,42 +132,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     );
 
     const firstImg = loadedImages[0].img;
-    const dpr = (metrics && metrics.devicePixelRatio) || 1;
-    const scaleRatio = isContainer
-      ? (firstImg.naturalWidth / (window.innerWidth || firstImg.naturalWidth / dpr))
-      : (firstImg.naturalWidth / (metrics ? metrics.clientWidth : window.innerWidth));
+    const capturedWinW = (metrics && metrics.windowWidth) || (metrics && metrics.clientWidth) || firstImg.naturalWidth;
+    const dpr = (metrics && metrics.devicePixelRatio) || (firstImg.naturalWidth / capturedWinW) || 1;
+    const pageBgColor = (metrics && metrics.backgroundColor) || '#1f1f1f';
 
     if (isContainer && cropRect) {
-      // Container mode (Google Docs, Gmail, Notion)
-      const sx = Math.round(cropRect.x * scaleRatio);
-      const sy = Math.round(cropRect.y * scaleRatio);
-      const sw = Math.round(cropRect.width * scaleRatio);
-      const sh = Math.round(cropRect.height * scaleRatio);
+      // Container mode (DeepSeek, Twitch, ChatGPT, Google Docs, Notion)
+      const sx = Math.max(0, Math.round(cropRect.x * dpr));
+      const sy = Math.max(0, Math.round(cropRect.y * dpr));
+      const sw = Math.min(firstImg.naturalWidth - sx, Math.round(cropRect.width * dpr));
+      const sh = Math.min(firstImg.naturalHeight - sy, Math.round(cropRect.height * dpr));
+
+      const containerStitchedHeight = Math.max(
+        ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + sh)
+      );
 
       canvas.width = sw;
-      canvas.height = Math.round(metrics.scrollHeight * scaleRatio);
+      canvas.height = containerStitchedHeight;
 
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = pageBgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (loadingStatusText) {
-        loadingStatusText.textContent = 'Stitching container slices into master canvas...';
+        loadingStatusText.textContent = 'Stitching slices into continuous screenshot...';
       }
 
       for (const item of loadedImages) {
         const { img, slice } = item;
-        const destinationY = Math.round(slice.actualY * scaleRatio);
+        const destinationY = Math.round(slice.actualY * dpr);
         ctx.drawImage(img, sx, sy, sw, sh, 0, destinationY, sw, sh);
       }
     } else {
-      // Standard full page mode (GitHub, Wikipedia, Portfolio, etc.)
+      // Standard full page mode (GitHub, Wikipedia, MDN, etc.)
       const totalCanvasWidth = Math.round(firstImg.naturalWidth);
-      const totalCanvasHeight = Math.round(metrics.scrollHeight * scaleRatio);
+      const maxReach = Math.max(
+        ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + firstImg.naturalHeight)
+      );
 
       canvas.width = totalCanvasWidth;
-      canvas.height = totalCanvasHeight;
+      canvas.height = maxReach;
 
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = pageBgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (loadingStatusText) {
@@ -173,7 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       for (const item of loadedImages) {
         const { img, slice } = item;
-        const destinationY = Math.round(slice.actualY * scaleRatio);
+        const destinationY = Math.round(slice.actualY * dpr);
         ctx.drawImage(img, 0, destinationY);
       }
     }
@@ -188,7 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { dataUrl, cropRect, dpr } = data;
     const img = await loadImageAsync(dataUrl);
 
-    const scale = dpr || (img.naturalWidth / window.innerWidth);
+    const scale = dpr || 1;
     const sx = Math.round(cropRect.x * scale);
     const sy = Math.round(cropRect.y * scale);
     const sw = Math.round(cropRect.width * scale);
@@ -197,7 +205,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     canvas.width = sw;
     canvas.height = sh;
 
-    ctx.fillStyle = '#ffffff';
+    const pageBgColor = (data.metrics && data.metrics.backgroundColor) || '#1f1f1f';
+    ctx.fillStyle = pageBgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 
@@ -212,7 +221,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
 
-    ctx.fillStyle = '#ffffff';
+    const pageBgColor = (sessionData && sessionData.metrics && sessionData.metrics.backgroundColor) || '#1f1f1f';
+    ctx.fillStyle = pageBgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0);
 
@@ -963,23 +973,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Copy to Clipboard (PNG with flattened annotations)
-  if (btnCopyClipboard) {
-    btnCopyClipboard.addEventListener('click', () => {
-      showToast('Copying to clipboard...');
-      const flatCanvas = getFlattenedCanvas();
-      flatCanvas.toBlob(async (blob) => {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ]);
-          showToast('Screenshoot & annotations copied to clipboard!');
-        } catch (err) {
-          console.error('Clipboard copy error:', err);
-          showToast('Failed to copy: Clipboard permission denied.');
+  // Unified Clipboard Copy Handler (Auto & Manual)
+  async function copyToClipboard(isAuto = false) {
+    const flatCanvas = getFlattenedCanvas();
+    flatCanvas.toBlob(async (blob) => {
+      if (!blob) {
+        if (!isAuto) showToast('Failed to copy');
+        return;
+      }
+
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        showToast('Copied to clipboard');
+      } catch (err) {
+        console.warn('Clipboard copy error:', err);
+        if (isAuto) {
+          // Retry once when tab gains focus if initial copy was delayed by window activation
+          const onFocusRetry = async () => {
+            window.removeEventListener('focus', onFocusRetry);
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              showToast('Copied to clipboard');
+            } catch (retryErr) {
+              console.warn('Clipboard retry on focus failed:', retryErr);
+            }
+          };
+          window.addEventListener('focus', onFocusRetry, { once: true });
+        } else {
+          showToast('Failed to copy');
         }
-      }, 'image/png');
-    });
+      }
+    }, 'image/png');
+  }
+
+  // Copy to Clipboard Button (PNG with flattened annotations)
+  if (btnCopyClipboard) {
+    btnCopyClipboard.addEventListener('click', () => copyToClipboard(false));
   }
 
   // Action Buttons

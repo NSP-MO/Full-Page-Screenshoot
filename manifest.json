@@ -10,7 +10,8 @@
     "scripting",
     "downloads",
     "storage",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -33,6 +34,20 @@
   "background": {
     "service_worker": "background/service-worker.js"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
   "web_accessible_resources": [
     {
       "resources": [

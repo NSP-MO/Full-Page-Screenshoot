@@ -1,13 +1,13 @@
 /**
  * Service Worker (Background) for Full Page Screenshot Extension
- * Handles high-speed 1-click full page capture with pipelined rate limiting and storage cleanup.
+ * Handles high-speed pipelined full page capture, visible viewport capture, area crop, and storage management.
  */
 
 let isCapturingActive = false;
 let lastCaptureTimestamp = 0;
 
 /**
- * Capture visible tab with optimized 520ms interval (maximum theoretical throughput under Chromium's 2 calls/sec quota)
+ * Capture visible tab with rate limiting adhering strictly to Chromium quota (2 calls/sec)
  */
 async function safeCaptureVisibleTab(windowId, options = { format: 'png' }, maxRetries = 4) {
   const MIN_CAPTURE_INTERVAL_MS = 520; // 520ms enforces ~1.92 calls/sec, strictly compliant with 2 calls/sec limit
@@ -71,9 +71,64 @@ async function cleanupExpiredSessions() {
 cleanupExpiredSessions();
 
 /**
- * Ensure content script and stylesheet are injected into target tab
+ * Check if URL permits content scripting and screen capture
+ */
+function isSupportedUrl(url) {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return !(
+    lower.startsWith('chrome://') ||
+    lower.startsWith('chrome-extension://') ||
+    lower.startsWith('brave://') ||
+    lower.startsWith('edge://') ||
+    lower.startsWith('about:') ||
+    lower.startsWith('view-source:') ||
+    lower.startsWith('devtools://') ||
+    lower.includes('chromewebstore.google.com') ||
+    lower.includes('chrome.google.com/webstore')
+  );
+}
+
+/**
+ * Ping tab to verify if content script is active and listening
+ */
+async function pingTab(tabId) {
+  try {
+    const res = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+    return res && res.status === 'ok';
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Send message to tab with automatic retry on transient IPC handshake delays
+ */
+async function safeSendMessage(tabId, message, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (err) {
+      const isConnectionError = err && err.message && err.message.includes('Could not establish connection');
+      if (isConnectionError && attempt < retries - 1) {
+        await new Promise((r) => setTimeout(r, 120));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+/**
+ * Ensure content script and stylesheet are actively responding in target tab
  */
 async function ensureContentScriptInjected(tabId) {
+  // If content script is already alive and responding, proceed immediately
+  if (await pingTab(tabId)) {
+    return true;
+  }
+
+  // Inject stylesheet if not already injected
   try {
     await chrome.scripting.insertCSS({
       target: { tabId },
@@ -81,25 +136,44 @@ async function ensureContentScriptInjected(tabId) {
     });
   } catch (e) {}
 
+  // Inject content script
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['content/content.js']
     });
-  } catch (e) {}
+  } catch (err) {
+    console.warn('Script injection failed on tab:', tabId, err);
+    throw new Error('Cannot capture this page. Extension scripting access is restricted on this URL.');
+  }
+
+  // Wait for content script message listener port to become ready (up to 1200ms)
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    if (await pingTab(tabId)) {
+      return true;
+    }
+  }
+
+  throw new Error('Could not establish connection with content script on tab.');
 }
 
 /**
  * Capture complete webpage from top to bottom (Fast Pipelined Full Page Capture)
  */
-async function captureFullPage(tab) {
+async function captureFullPage(tab, options = {}) {
   if (isCapturingActive) {
     console.warn('Capture already in progress.');
-    return;
+    return { status: 'error', message: 'Capture already in progress.' };
   }
 
   isCapturingActive = true;
   const tabId = tab.id;
+
+  const scrollDelayMs = typeof options.delayMs === 'number' ? options.delayMs : 150;
+  const hideFixedElements = typeof options.hideFixedElements === 'boolean' ? options.hideFixedElements : true;
+  const imageFormat = options.format === 'jpeg' ? 'jpeg' : 'png';
+  const imageQuality = typeof options.quality === 'number' ? options.quality : 94;
 
   try {
     await chrome.action.setBadgeBackgroundColor({ tabId, color: '#007acc' });
@@ -109,11 +183,8 @@ async function captureFullPage(tab) {
   try {
     await ensureContentScriptInjected(tabId);
 
-    const hideFixedElements = true;
-    const scrollDelayMs = 120; // Fast 120ms scroll repaint delay
-
     // Prepare page and measure scroller metrics
-    const prepResponse = await chrome.tabs.sendMessage(tabId, {
+    const prepResponse = await safeSendMessage(tabId, {
       action: 'prepareCapture',
       hideFixedElements: hideFixedElements
     });
@@ -125,17 +196,17 @@ async function captureFullPage(tab) {
     const metrics = prepResponse.metrics;
     const totalHeight = metrics.scrollHeight;
     const viewportHeight = Math.max(metrics.clientHeight, 100);
+    const maxScrollY = Math.max(0, totalHeight - viewportHeight);
 
-    // Calculate vertical scroll step positions
+    // Calculate vertical scroll step positions with precise bottom clamping
     const yPositions = [];
     let currentY = 0;
-    while (currentY < totalHeight) {
+    while (currentY < maxScrollY) {
       yPositions.push(currentY);
       currentY += viewportHeight;
     }
-    const maxY = Math.max(0, totalHeight - viewportHeight);
-    if (yPositions.length === 0 || yPositions[yPositions.length - 1] < maxY) {
-      yPositions.push(maxY);
+    if (yPositions.length === 0 || yPositions[yPositions.length - 1] < maxScrollY) {
+      yPositions.push(maxScrollY);
     }
 
     const slices = [];
@@ -150,8 +221,8 @@ async function captureFullPage(tab) {
         await chrome.action.setBadgeText({ tabId, text: `${percent}%` });
       } catch (e) {}
 
-      // Scroll target scroller (fast 120ms delay)
-      const scrollRes = await chrome.tabs.sendMessage(tabId, {
+      // Scroll target scroller
+      const scrollRes = await safeSendMessage(tabId, {
         action: 'scrollTo',
         y: targetY,
         isFirstSlice: isFirstSlice,
@@ -163,8 +234,12 @@ async function captureFullPage(tab) {
         ? scrollRes.scroll.actualY
         : targetY;
 
-      // Capture visible viewport slice with pipelined 520ms interval
-      const dataUrl = await safeCaptureVisibleTab(tab.windowId, { format: 'png' });
+      // Capture visible viewport slice
+      const captureOpts = imageFormat === 'jpeg'
+        ? { format: 'jpeg', quality: imageQuality }
+        : { format: 'png' };
+
+      const dataUrl = await safeCaptureVisibleTab(tab.windowId, captureOpts);
 
       slices.push({
         index: i,
@@ -176,7 +251,7 @@ async function captureFullPage(tab) {
 
     // Restore page to original state
     try {
-      await chrome.tabs.sendMessage(tabId, { action: 'restorePage' });
+      await safeSendMessage(tabId, { action: 'restorePage' }, 1);
     } catch (e) {}
 
     try {
@@ -193,10 +268,10 @@ async function captureFullPage(tab) {
       createdAt: now,
       slices: slices,
       metrics: metrics,
-      title: tab.title || 'Full Page Screenshoot',
+      title: tab.title || 'Screenshoot',
       url: tab.url || '',
-      format: 'png',
-      quality: 94
+      format: imageFormat,
+      quality: imageQuality
     };
 
     await chrome.storage.local.set({ [sessionId]: sessionData });
@@ -211,10 +286,30 @@ async function captureFullPage(tab) {
 }
 
 /**
- * Handle direct extension icon click in browser toolbar (1-Click Screenshot)
+ * Runtime message listener
+ */
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'captureFullPage') {
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([activeTab]) => {
+      if (!activeTab) {
+        sendResponse({ status: 'error', message: 'No active tab found.' });
+        return;
+      }
+      captureFullPage(activeTab, request.options || {})
+        .then((res) => sendResponse(res))
+        .catch((err) => sendResponse({ status: 'error', message: err.message }));
+    }).catch((err) => {
+      sendResponse({ status: 'error', message: err.message });
+    });
+    return true;
+  }
+});
+
+/**
+ * Direct extension icon click in browser toolbar (1-Click Screenshot)
  */
 chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('brave://') || tab.url.startsWith('edge://')) {
+  if (!tab || !tab.url || !isSupportedUrl(tab.url)) {
     try {
       await chrome.action.setBadgeText({ tabId: tab.id, text: 'X' });
       await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#ef4444' });

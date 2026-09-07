@@ -15,6 +15,15 @@ body.fps-hide-scrollbar {
   -ms-overflow-style: none !important;
 }
 
+/* Strictly disable smooth scrolling during screenshot capture to guarantee instant, synchronous jumps */
+html.fps-hide-scrollbar,
+html.fps-hide-scrollbar *,
+body.fps-hide-scrollbar,
+body.fps-hide-scrollbar * {
+  scroll-behavior: auto !important;
+}
+
 .fps-element-hidden-temporarily {
   visibility: hidden !important;
 }
+
