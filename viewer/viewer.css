@@ -44,13 +44,13 @@ body {
 
 /* Top Bar - VS Code Header Style */
 .top-bar {
-  height: 52px;
+  height: 60px;
   background-color: var(--bg-bar);
   border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 20px;
   z-index: 100;
   flex-shrink: 0;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
@@ -59,32 +59,32 @@ body {
 .page-meta {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   max-width: 35%;
 }
 
 .app-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--accent);
 }
 
 .brand-icon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .brand-name {
   font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
   letter-spacing: -0.2px;
   color: var(--text-heading);
 }
 
 .divider-v {
   width: 1px;
-  height: 20px;
+  height: 24px;
   background-color: var(--border-light);
 }
 
@@ -92,10 +92,11 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  gap: 2px;
 }
 
 .target-title {
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-heading);
   white-space: nowrap;
@@ -104,7 +105,7 @@ body {
 }
 
 .target-url {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -118,16 +119,16 @@ body {
   background-color: var(--bg-darkest);
   border: 1px solid var(--border-light);
   border-radius: 4px;
-  padding: 2px 4px;
-  gap: 2px;
+  padding: 4px 6px;
+  gap: 4px;
 }
 
 .tool-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 3px;
   display: flex;
   align-items: center;
@@ -142,15 +143,15 @@ body {
 }
 
 .tool-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 17px;
+  height: 17px;
 }
 
 .zoom-text {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-main);
-  min-width: 40px;
+  min-width: 48px;
   text-align: center;
   user-select: none;
 }
@@ -159,9 +160,9 @@ body {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 3px 6px;
+  padding: 5px 10px;
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -176,16 +177,16 @@ body {
 .action-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .badge-resolution {
   background-color: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-light);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 5px 8px;
+  padding: 6px 12px;
   border-radius: 4px;
   user-select: none;
 }
@@ -193,10 +194,10 @@ body {
 .btn-action {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 8px 16px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -204,8 +205,8 @@ body {
 }
 
 .btn-action svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .btn-secondary {
@@ -245,7 +246,7 @@ body {
   border-top-left-radius: 0 !important;
   border-bottom-left-radius: 0 !important;
   border-left: 1px solid rgba(255, 255, 255, 0.2) !important;
-  padding: 6px 7px !important;
+  padding: 8px 10px !important;
 }
 
 .dropdown-menu {
@@ -255,12 +256,12 @@ body {
   background-color: var(--bg-bar);
   border: 1px solid var(--border-light);
   border-radius: 4px;
-  padding: 4px;
-  min-width: 250px;
+  padding: 6px;
+  min-width: 280px;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   z-index: 1000;
 }
 
@@ -268,9 +269,9 @@ body {
   background: transparent;
   border: none;
   color: var(--text-main);
-  font-size: 12px;
+  font-size: 13.5px;
   text-align: left;
-  padding: 7px 10px;
+  padding: 9px 14px;
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -284,16 +285,16 @@ body {
 /* Floating Annotation Toolbar - VS Code Docked Style */
 .annotation-toolbar {
   position: fixed;
-  top: 66px;
+  top: 76px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(37, 37, 38, 0.95);
   border: 1px solid var(--border-light);
   border-radius: 6px;
-  padding: 5px 12px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(8px);
   z-index: 95;
@@ -303,15 +304,15 @@ body {
 .tool-group {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .anno-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -321,8 +322,8 @@ body {
 }
 
 .anno-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 19px;
+  height: 19px;
 }
 
 .anno-btn:hover {
@@ -338,22 +339,22 @@ body {
 
 .toolbar-divider {
   width: 1px;
-  height: 18px;
+  height: 22px;
   background-color: var(--border-light);
-  margin: 0 3px;
+  margin: 0 4px;
 }
 
 /* Color Palette */
 .color-palette {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .color-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   border: 1px solid var(--border-light);
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease;
@@ -373,15 +374,15 @@ body {
 .stroke-selector {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .stroke-btn {
   background: transparent;
   border: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 3px;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -415,7 +416,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 60px 20px 40px 20px;
+  padding: 86px 24px 50px 24px;
   background-color: var(--bg-workspace);
 }
 
@@ -446,7 +447,7 @@ body {
 
 #loadingStatusText {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
 }
 
@@ -479,15 +480,15 @@ body {
 /* Toast Notification - VS Code Info Banner Style */
 .toast {
   position: fixed;
-  bottom: 20px;
+  bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
   background-color: var(--bg-bar);
   color: var(--text-heading);
   border: 1px solid var(--border-focus);
-  padding: 8px 18px;
+  padding: 10px 22px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 500;
   box-shadow: var(--shadow);
   z-index: 9999;
@@ -501,16 +502,16 @@ body {
 
 /* Bottom Status Bar */
 .bottom-bar {
-  height: 26px;
+  height: 34px;
   background-color: var(--bg-darkest);
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
+  padding: 0 16px;
   z-index: 100;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 12.5px;
 }
 
 .footer-left {
@@ -519,7 +520,7 @@ body {
 }
 
 .footer-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-dim);
 }
@@ -532,12 +533,12 @@ body {
 .footer-support-link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 500;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 3px;
   transition: all 0.15s ease;
 }
@@ -549,8 +550,8 @@ body {
 }
 
 .footer-support-link .support-icon {
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 
