@@ -351,33 +351,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Draw arrow helper
   function drawArrow(targetCtx, fromX, fromY, toX, toY, color, lineWidth) {
-    const headLength = Math.max(16, lineWidth * 3.5);
-    const angle = Math.atan2(toY - fromY, toX - fromX);
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
 
+    const angle = Math.atan2(dy, dx);
+    const headAngle = Math.PI / 6;
+    const headLength = Math.min(dist * 0.85, Math.max(16, lineWidth * 3.8));
+    const baseDist = headLength * Math.cos(headAngle);
+
+    targetCtx.save();
     targetCtx.strokeStyle = color;
     targetCtx.fillStyle = color;
     targetCtx.lineWidth = lineWidth;
     targetCtx.lineCap = 'round';
     targetCtx.lineJoin = 'round';
 
-    targetCtx.beginPath();
-    targetCtx.moveTo(fromX, fromY);
-    targetCtx.lineTo(toX, toY);
-    targetCtx.stroke();
+    // 1. Draw line shaft terminating at the base of the arrowhead (never reaching the tip)
+    if (dist > baseDist) {
+      const shaftEndX = toX - baseDist * Math.cos(angle);
+      const shaftEndY = toY - baseDist * Math.sin(angle);
 
-    // Arrowhead
+      targetCtx.beginPath();
+      targetCtx.moveTo(fromX, fromY);
+      targetCtx.lineTo(shaftEndX, shaftEndY);
+      targetCtx.stroke();
+    }
+
+    // 2. Draw crisp arrowhead polygon with true tip at (toX, toY)
+    const wing1X = toX - headLength * Math.cos(angle - headAngle);
+    const wing1Y = toY - headLength * Math.sin(angle - headAngle);
+    const wing2X = toX - headLength * Math.cos(angle + headAngle);
+    const wing2Y = toY - headLength * Math.sin(angle + headAngle);
+
     targetCtx.beginPath();
     targetCtx.moveTo(toX, toY);
-    targetCtx.lineTo(
-      toX - headLength * Math.cos(angle - Math.PI / 6),
-      toY - headLength * Math.sin(angle - Math.PI / 6)
-    );
-    targetCtx.lineTo(
-      toX - headLength * Math.cos(angle + Math.PI / 6),
-      toY - headLength * Math.sin(angle + Math.PI / 6)
-    );
+    targetCtx.lineTo(wing1X, wing1Y);
+    targetCtx.lineTo(wing2X, wing2Y);
     targetCtx.closePath();
     targetCtx.fill();
+
+    targetCtx.restore();
   }
 
   // Draw smooth Gaussian blur helper
