@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resolutionBadge = document.getElementById('resolutionBadge');
   const loadingState = document.getElementById('loadingState');
   const loadingStatusText = document.getElementById('loadingStatusText');
+  const canvasViewport = document.getElementById('canvasViewport');
   const canvasWrapper = document.getElementById('canvasWrapper');
   const canvas = document.getElementById('screenshotCanvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -91,6 +92,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup annotation canvas overlay dimensions
     annoCanvas.width = canvas.width;
     annoCanvas.height = canvas.height;
+    if (canvasWrapper) {
+      canvasWrapper.style.width = `${canvas.width}px`;
+      canvasWrapper.style.height = `${canvas.height}px`;
+    }
 
     // Display canvas and hide loading spinner
     if (loadingState) loadingState.classList.add('hidden');
@@ -259,29 +264,107 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 3000);
   }
 
+  // Viewport layout synchronization helper
+  function updateViewportLayout() {
+    if (!canvas.width || !canvas.height || !canvasViewport || !canvasWrapper) return;
+
+    const scaledW = canvas.width * currentZoom;
+    const scaledH = canvas.height * currentZoom;
+    const wsWidth = workspace.clientWidth || window.innerWidth;
+
+    const horizontalPad = Math.max(20, Math.floor((wsWidth - scaledW) / 2));
+    const topPad = 60;
+    const bottomPad = 40;
+
+    canvasViewport.style.width = `${Math.round(scaledW + horizontalPad * 2)}px`;
+    canvasViewport.style.height = `${Math.round(scaledH + topPad + bottomPad)}px`;
+
+    canvasWrapper.style.left = `${horizontalPad}px`;
+    canvasWrapper.style.top = `${topPad}px`;
+    canvasWrapper.style.transform = `scale(${currentZoom})`;
+  }
+
   // Zoom Handling
   function setZoom(newZoom) {
-    currentZoom = Math.max(0.05, Math.min(3.0, newZoom));
-    if (canvasWrapper) {
-      canvasWrapper.style.transform = `scale(${currentZoom})`;
-    }
+    currentZoom = Math.max(0.05, Math.min(5.0, newZoom));
+    updateViewportLayout();
     if (zoomLevelText) {
       zoomLevelText.textContent = `${Math.round(currentZoom * 100)}%`;
     }
   }
 
-  if (btnZoomIn) btnZoomIn.addEventListener('click', () => setZoom(currentZoom + 0.15));
-  if (btnZoomOut) btnZoomOut.addEventListener('click', () => setZoom(currentZoom - 0.15));
-  if (btnActualSize) btnActualSize.addEventListener('click', () => setZoom(1.0));
+  function zoomAroundPoint(factor, clientX, clientY) {
+    if (!canvas.width || !canvas.height) return;
+
+    const oldZoom = currentZoom;
+    const newZoom = Math.max(0.05, Math.min(5.0, oldZoom * factor));
+    if (Math.abs(newZoom - oldZoom) < 0.0001) return;
+
+    const rect = workspace.getBoundingClientRect();
+    const cursorX = clientX - rect.left;
+    const cursorY = clientY - rect.top;
+
+    const wsWidth = workspace.clientWidth;
+    const oldScaledW = canvas.width * oldZoom;
+    const oldPadX = Math.max(20, Math.floor((wsWidth - oldScaledW) / 2));
+    const topPad = 60;
+
+    // Canvas coordinate under the cursor
+    const canvasX = (workspace.scrollLeft + cursorX - oldPadX) / oldZoom;
+    const canvasY = (workspace.scrollTop + cursorY - topPad) / oldZoom;
+
+    // Apply new scale and layout
+    currentZoom = newZoom;
+    updateViewportLayout();
+
+    if (zoomLevelText) {
+      zoomLevelText.textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+
+    // Anchor: reposition scroll so the canvas point under cursor remains exactly stationary
+    const newScaledW = canvas.width * newZoom;
+    const newPadX = Math.max(20, Math.floor((wsWidth - newScaledW) / 2));
+
+    const targetScrollX = Math.round(newPadX + canvasX * newZoom - cursorX);
+    const targetScrollY = Math.round(topPad + canvasY * newZoom - cursorY);
+
+    workspace.scrollLeft = Math.max(0, targetScrollX);
+    workspace.scrollTop = Math.max(0, targetScrollY);
+  }
+
+  function zoomByCenter(factor) {
+    const rect = workspace.getBoundingClientRect();
+    zoomAroundPoint(factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  }
+
+  if (btnZoomIn) btnZoomIn.addEventListener('click', () => zoomByCenter(1.15));
+  if (btnZoomOut) btnZoomOut.addEventListener('click', () => zoomByCenter(1 / 1.15));
+  if (btnActualSize) btnActualSize.addEventListener('click', () => { setZoom(1.0); workspace.scrollLeft = 0; });
 
   function fitToWidth() {
     if (!canvas.width || !workspace) return;
     const availableWidth = workspace.clientWidth - 80;
     const ratio = availableWidth / canvas.width;
     setZoom(Math.min(1.0, ratio));
+    workspace.scrollLeft = 0;
+    workspace.scrollTop = 0;
   }
 
   if (btnFitWidth) btnFitWidth.addEventListener('click', fitToWidth);
+
+  // Intercept Ctrl + Wheel, Alt + Wheel, and trackpad pinch to zoom preview instead of browser page
+  window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      e.preventDefault();
+      const zoomFactor = Math.exp(-e.deltaY * 0.0025);
+      zoomAroundPoint(zoomFactor, e.clientX, e.clientY);
+    }
+  }, { passive: false });
+
+  // Keep centering layout updated on window resize
+  window.addEventListener('resize', () => {
+    updateViewportLayout();
+  });
 
   // Filename generator
   function generateFilename(ext) {
@@ -306,7 +389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     if (tool === 'select') {
-      annoCanvas.style.cursor = 'default';
+      annoCanvas.style.cursor = 'grab';
     } else if (tool === 'text') {
       annoCanvas.style.cursor = 'text';
     } else {
@@ -517,9 +600,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Panning state for Select mode or middle-click drag
+  let isPanning = false;
+  let panStartX = 0;
+  let panStartY = 0;
+  let scrollStartX = 0;
+  let scrollStartY = 0;
+
   // Mouse Interaction on Annotation Canvas
   annoCanvas.addEventListener('mousedown', (e) => {
-    if (activeTool === 'select') return;
+    if (activeTool === 'select' || e.button === 1) {
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      scrollStartX = workspace.scrollLeft;
+      scrollStartY = workspace.scrollTop;
+      annoCanvas.style.cursor = 'grabbing';
+      return;
+    }
 
     const coords = getCanvasCoords(e);
     isDrawing = true;
@@ -546,6 +644,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   window.addEventListener('mousemove', (e) => {
+    if (isPanning) {
+      workspace.scrollLeft = scrollStartX - (e.clientX - panStartX);
+      workspace.scrollTop = scrollStartY - (e.clientY - panStartY);
+      return;
+    }
     if (!isDrawing) return;
 
     const coords = getCanvasCoords(e);
@@ -595,6 +698,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   window.addEventListener('mouseup', (e) => {
+    if (isPanning) {
+      isPanning = false;
+      annoCanvas.style.cursor = activeTool === 'select' ? 'grab' : 'crosshair';
+      return;
+    }
     if (!isDrawing) return;
     isDrawing = false;
 
@@ -695,14 +803,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Keyboard shortcut for Undo (Ctrl+Z) & Tools (V, G, M, R, A, P, T)
+  // Keyboard shortcut for Undo (Ctrl+Z), Zoom (Ctrl + / -, Ctrl 0), & Tools (V, G, M, R, A, P, T)
   window.addEventListener('keydown', (e) => {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      undoLastAnnotation();
-      return;
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === '=' || e.key === '+' || e.code === 'NumpadAdd') {
+        e.preventDefault();
+        zoomByCenter(1.15);
+        return;
+      }
+      if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract') {
+        e.preventDefault();
+        zoomByCenter(1 / 1.15);
+        return;
+      }
+      if (e.key === '0' || e.code === 'Numpad0') {
+        e.preventDefault();
+        setZoom(1.0);
+        workspace.scrollLeft = 0;
+        return;
+      }
+      if (e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undoLastAnnotation();
+        return;
+      }
     }
 
     const k = e.key.toLowerCase();
