@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Full Page Screenshoot",
+  "name": "Full Page Screenshot - No Ads, No Telemetry",
   "version": "1.0.0",
-  "description": "One-click high-resolution full webpage screenshoot capture. Scrolls and captures entire page with native browser rendering, then opens an instant preview with Copy, PNG, and PDF save options.",
+  "description": "Full-page screenshots that just work. No ads, no telemetry. Instant capture with built-in preview, annotations, copy, and export.",
   "author": "NSP-MO",
   "homepage_url": "https://github.com/NSP-MO/Full-Page-Screenshoot",
   "permissions": [
@@ -23,7 +23,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "Take Full Page Screenshoot"
+    "default_title": "Take Full Page Screenshot"
   },
   "icons": {
     "16": "icons/icon16.png",
