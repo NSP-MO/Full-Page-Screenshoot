@@ -25,7 +25,6 @@ A high-performance Chromium / Brave browser extension designed for one-click, pi
 - **Container-Aware Cropping**: Clips slices to container boundaries, eliminating repeated sidebars and top toolbars.
 
 ### 3. Integrated Preview & Annotation Workspace
-- **VS Code Dark Theme**: Clean interface styled in accordance with the `#1f1f1f` palette.
 - **Interactive Redaction & Markup Tools**:
   - **Smooth Gaussian Blur (`G`)**: GPU-accelerated blur filter with edge margin padding for soft redaction.
   - **Pixelated Mosaic Censor (`M` / `B`)**: Classic pixelation block censor for masking sensitive text or credentials.
@@ -56,7 +55,7 @@ f:/full-page-screenshot/
 │   └── content.css            # Non-blocking scrollbar suppression styles
 ├── viewer/
 │   ├── viewer.html            # Full-page preview workspace
-│   ├── viewer.css             # Viewer interface styling (VS Code #1f1f1f)
+│   ├── viewer.css             # Viewer interface styling
 │   └── viewer.js              # Canvas stitching, Gaussian blur, PDF generator, and export
 └── icons/
     ├── icon16.png
