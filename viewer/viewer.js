@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Annotation Tools
   const annoButtons = document.querySelectorAll('.anno-btn[data-tool]');
   const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
   const btnClearAnno = document.getElementById('btnClearAnno');
   const colorDots = document.querySelectorAll('.color-dot');
   const strokeBtns = document.querySelectorAll('.stroke-btn');
@@ -82,6 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let selectedAnnotationIndex = -1;
   let hoveredAnnotationIndex = -1;
   let undoStack = [];
+  let redoStack = [];
 
   // Text Editor State
   let currentEditingAnnotationIndex = -1;
@@ -1063,6 +1065,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function saveUndoState() {
     undoStack.push(JSON.parse(JSON.stringify(annotations)));
     if (undoStack.length > 50) undoStack.shift();
+    redoStack = [];
   }
 
   function deleteAnnotationAtIndex(index) {
@@ -1764,18 +1767,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Undo & Clear
+  // Undo & Redo & Clear
   function undoLastAnnotation() {
     if (isEditingText) {
       cancelActiveTextEditor();
       return;
     }
     if (undoStack.length > 0) {
+      redoStack.push(JSON.parse(JSON.stringify(annotations)));
+      if (redoStack.length > 50) redoStack.shift();
       annotations = undoStack.pop();
       selectedAnnotationIndex = -1;
       hoveredAnnotationIndex = -1;
       redrawAnnotations();
       showToast('Undo annotation');
     } else if (annotations.length > 0) {
+      redoStack.push(JSON.parse(JSON.stringify(annotations)));
+      if (redoStack.length > 50) redoStack.shift();
       annotations.pop();
       selectedAnnotationIndex = -1;
       hoveredAnnotationIndex = -1;
@@ -1784,7 +1792,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function redoLastAnnotation() {
+    if (isEditingText) {
+      commitActiveTextEditor(true);
+    }
+    if (redoStack.length > 0) {
+      undoStack.push(JSON.parse(JSON.stringify(annotations)));
+      if (undoStack.length > 50) undoStack.shift();
+      annotations = redoStack.pop();
+      selectedAnnotationIndex = -1;
+      hoveredAnnotationIndex = -1;
+      redrawAnnotations();
+      showToast('Redo annotation');
+    }
+  }
+
   if (btnUndo) btnUndo.addEventListener('click', undoLastAnnotation);
+  if (btnRedo) btnRedo.addEventListener('click', redoLastAnnotation);
 
   if (btnClearAnno) {
     btnClearAnno.addEventListener('click', () => {
@@ -1802,7 +1826,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Keyboard shortcut for Undo (Ctrl+Z), Zoom (Ctrl + / -, Ctrl 0), Delete, & Tools (V, G, M, R, A, P, T, E)
+  // Keyboard shortcut for Undo (Ctrl+Z), Redo (Ctrl+Y / Ctrl+Shift+Z), Zoom (Ctrl + / -, Ctrl 0), Delete, & Tools (V, G, M, R, A, P, T, E)
   window.addEventListener('keydown', (e) => {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
 
@@ -1821,6 +1845,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         setZoom(1.0);
         workspace.scrollLeft = 0;
+        return;
+      }
+      if (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        redoLastAnnotation();
         return;
       }
       if (e.key.toLowerCase() === 'z') {
