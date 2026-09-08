@@ -8,6 +8,10 @@
   let originalScrollY = 0;
   let originalScrollBehavior = '';
   let hiddenFixedElements = [];
+  let cachedFixedHeaders = [];
+  let cachedFixedFooters = [];
+  let cachedFloatingWidgets = [];
+  let unhitchedStickyElements = [];
 
   /**
    * Determine the effective background color of an element or the document
@@ -274,12 +278,23 @@
   }
 
   /**
-   * Find and cache fixed/sticky elements to prevent duplicate repeated headers during vertical stitching
+   * Find, classify, and cache floating/fixed/sticky elements to eliminate repetition across slices.
+   * Un-hitches sticky elements (thinking process headers, code headers) to relative flow,
+   * hides transient floating buttons (scroll-to-bottom), keeps top headers on slice 0 only,
+   * and suppresses bottom input prompt bars on intermediate slices.
    */
   function findAndCacheFixedElements() {
     hiddenFixedElements = [];
-    const root = (activeScroller && !activeScroller.isWindow) ? activeScroller.element : document;
-    const allElements = root.querySelectorAll('*');
+    cachedFixedHeaders = [];
+    cachedFixedFooters = [];
+    cachedFloatingWidgets = [];
+    unhitchedStickyElements = [];
+
+    const winW = window.innerWidth || document.documentElement.clientWidth;
+    const winH = window.innerHeight || document.documentElement.clientHeight;
+
+    // Scan the entire document so fixed elements outside container scrollers are discovered
+    const allElements = document.querySelectorAll('*');
 
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i];
@@ -287,72 +302,143 @@
 
       const style = window.getComputedStyle(el);
       const position = style.position;
-      if (position === 'fixed' || position === 'sticky') {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden') {
-          hiddenFixedElements.push({
-            element: el,
-            originalVisibility: el.style.visibility
-          });
-        }
-      }
-    }
-  }
+      const display = style.display;
+      const visibility = style.visibility;
 
-  function setFixedElementsVisibility(visible) {
-    for (const item of hiddenFixedElements) {
-      if (visible) {
-        item.element.style.visibility = item.originalVisibility;
-      } else {
-        item.element.style.visibility = 'hidden';
+      if (display === 'none' || visibility === 'hidden') continue;
+
+      // 1. Un-hitch position: sticky elements so they flow naturally with their message/section
+      if (position === 'sticky') {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          unhitchedStickyElements.push({
+            element: el,
+            originalPosition: el.style.position
+          });
+          el.style.setProperty('position', 'relative', 'important');
+        }
+        continue;
+      }
+
+      // 2. Fixed elements (and absolute bottom-docked overlays)
+      if (position === 'fixed' || (position === 'absolute' && el.parentElement === document.body)) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+
+        const className = (typeof el.className === 'string' ? el.className : '').toLowerCase();
+        const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+        const id = (typeof el.id === 'string' ? el.id : '').toLowerCase();
+
+        // 2a. Floating Action Buttons / Transient Controls (Scroll to bottom, quick prompts, jump buttons)
+        const isFloatingControl =
+          (rect.width < 110 && rect.height < 110 && (rect.left > winW * 0.4 || rect.top > winH * 0.5)) ||
+          className.includes('scroll-to-bottom') ||
+          className.includes('scroll-bottom') ||
+          className.includes('back-to-bottom') ||
+          className.includes('jump-to-bottom') ||
+          ariaLabel.includes('scroll to bottom') ||
+          ariaLabel.includes('bottom') ||
+          id.includes('scroll-bottom');
+
+        const record = {
+          element: el,
+          originalVisibility: el.style.visibility
+        };
+
+        if (isFloatingControl) {
+          cachedFloatingWidgets.push(record);
+          hiddenFixedElements.push(record);
+          el.style.setProperty('visibility', 'hidden', 'important');
+          continue;
+        }
+
+        // 2b. Fixed Top Headers (Visible ONLY on slice 0)
+        if (rect.top <= 35 && rect.height < winH * 0.35) {
+          cachedFixedHeaders.push(record);
+          hiddenFixedElements.push(record);
+          continue;
+        }
+
+        // 2c. Fixed Bottom Footers / Prompt Input Bars (Visible ONLY on the last slice)
+        if (rect.bottom >= winH - 35 && rect.height < winH * 0.45) {
+          cachedFixedFooters.push(record);
+          hiddenFixedElements.push(record);
+          continue;
+        }
+
+        // 2d. General fixed overlays
+        hiddenFixedElements.push(record);
       }
     }
   }
 
   /**
-   * Extract clickable hyperlinks with accurate canvas-mapped coordinates
+   * Set visibility of fixed/floating elements per slice
    */
-  function extractPageLinks(scrollerInfo) {
+  function setFixedElementsVisibility(visible, isLastSlice = false) {
+    const isFirstSlice = !!visible;
+
+    // Top headers: visible only on slice 0
+    for (const item of cachedFixedHeaders) {
+      if (isFirstSlice) {
+        item.element.style.visibility = item.originalVisibility;
+      } else {
+        item.element.style.setProperty('visibility', 'hidden', 'important');
+      }
+    }
+
+    // Bottom prompt bars / footers: visible only on the last slice
+    for (const item of cachedFixedFooters) {
+      if (isLastSlice) {
+        item.element.style.visibility = item.originalVisibility;
+      } else {
+        item.element.style.setProperty('visibility', 'hidden', 'important');
+      }
+    }
+
+    // Floating action buttons (e.g. scroll-to-bottom): strictly hidden throughout capture
+    for (const item of cachedFloatingWidgets) {
+      item.element.style.setProperty('visibility', 'hidden', 'important');
+    }
+
+    // General fallback for any other fixed elements
+    for (const item of hiddenFixedElements) {
+      const isAlreadyHandled =
+        cachedFixedHeaders.some((h) => h.element === item.element) ||
+        cachedFixedFooters.some((f) => f.element === item.element) ||
+        cachedFloatingWidgets.some((w) => w.element === item.element);
+
+      if (isAlreadyHandled) continue;
+
+      if (isFirstSlice) {
+        item.element.style.visibility = item.originalVisibility;
+      } else {
+        item.element.style.setProperty('visibility', 'hidden', 'important');
+      }
+    }
+  }
+
+  /**
+   * Extract hyperlinks currently visible in the active slice viewport
+   */
+  function extractSliceLinks(scrollerInfo, currentScrollY) {
     try {
-      const root = (scrollerInfo && !scrollerInfo.isWindow) ? scrollerInfo.element : document;
+      const isWin = !scrollerInfo || scrollerInfo.isWindow;
+      const root = isWin ? document : scrollerInfo.element;
       const anchorElements = root.querySelectorAll('a[href]');
       if (!anchorElements || anchorElements.length === 0) return [];
 
-      const windowScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
-      const windowScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+      const winW = window.innerWidth || document.documentElement.clientWidth;
+      const winH = window.innerHeight || document.documentElement.clientHeight;
 
       let containerRect = null;
-      let containerScrollTop = 0;
-      let containerScrollLeft = 0;
-
-      if (scrollerInfo && !scrollerInfo.isWindow) {
+      if (!isWin) {
         containerRect = scrollerInfo.element.getBoundingClientRect();
-        containerScrollTop = scrollerInfo.element.scrollTop;
-        containerScrollLeft = scrollerInfo.element.scrollLeft;
       }
 
-      function isFixed(el) {
-        if (hiddenFixedElements && hiddenFixedElements.length > 0) {
-          for (let j = 0; j < hiddenFixedElements.length; j++) {
-            if (hiddenFixedElements[j].element === el || hiddenFixedElements[j].element.contains(el)) {
-              return true;
-            }
-          }
-        }
-        let cur = el;
-        while (cur && cur !== document && cur !== document.documentElement) {
-          const pos = window.getComputedStyle(cur).position;
-          if (pos === 'fixed') return true;
-          cur = cur.parentElement;
-        }
-        return false;
-      }
-
-      const MAX_LINKS = 2500;
       const links = [];
-
       for (let i = 0; i < anchorElements.length; i++) {
-        if (links.length >= MAX_LINKS) break;
+        if (links.length >= 600) break;
         const el = anchorElements[i];
 
         if (el.id && el.id.startsWith('fps-')) continue;
@@ -370,50 +456,51 @@
           continue;
         }
 
-        if (el.checkVisibility && !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) {
-          continue;
-        }
-
         const clientRects = el.getClientRects();
         if (!clientRects || clientRects.length === 0) continue;
 
-        const elIsFixed = (scrollerInfo && scrollerInfo.isWindow) ? isFixed(el) : false;
-
         for (let r = 0; r < clientRects.length; r++) {
-          if (links.length >= MAX_LINKS) break;
           const rect = clientRects[r];
           if (rect.width <= 1 || rect.height <= 1) continue;
 
-          let x = 0;
-          let y = 0;
-          const w = Math.round(rect.width);
-          const h = Math.round(rect.height);
-
-          if (scrollerInfo && !scrollerInfo.isWindow && containerRect) {
-            x = Math.round((rect.left - containerRect.left) + containerScrollLeft);
-            y = Math.round((rect.top - containerRect.top) + containerScrollTop);
-          } else {
-            x = Math.round(elIsFixed ? rect.left : (rect.left + windowScrollX));
-            y = Math.round(elIsFixed ? rect.top : (rect.top + windowScrollY));
-          }
-
-          if (w > 0 && h > 0) {
+          if (isWin) {
+            // Check if link is within visible viewport slice
+            if (rect.bottom <= 0 || rect.top >= winH || rect.right <= 0 || rect.left >= winW) continue;
             links.push({
               url: fullUrl,
-              x: x,
-              y: y,
-              width: w,
-              height: h
+              x: Math.round(rect.left),
+              y: Math.round(rect.top + currentScrollY),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height)
+            });
+          } else if (containerRect) {
+            // Check if link is within container visible viewport slice
+            if (rect.bottom <= containerRect.top || rect.top >= containerRect.bottom ||
+                rect.right <= containerRect.left || rect.left >= containerRect.right) {
+              continue;
+            }
+            links.push({
+              url: fullUrl,
+              x: Math.round(rect.left - containerRect.left),
+              y: Math.round((rect.top - containerRect.top) + currentScrollY),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height)
             });
           }
         }
       }
-
       return links;
     } catch (err) {
-      console.warn('Failed to extract page links:', err);
+      console.warn('Failed to extract slice links:', err);
       return [];
     }
+  }
+
+  /**
+   * Extract clickable hyperlinks with accurate canvas-mapped coordinates
+   */
+  function extractPageLinks(scrollerInfo) {
+    return extractSliceLinks(scrollerInfo, 0);
   }
 
   /**
@@ -464,32 +551,58 @@
     }
     document.documentElement.style.scrollBehavior = '';
 
+    // Restore un-hitched sticky elements
+    for (const item of unhitchedStickyElements) {
+      item.element.style.position = item.originalPosition;
+    }
+    unhitchedStickyElements = [];
+
+    // Restore fixed headers
+    for (const item of cachedFixedHeaders) {
+      item.element.style.visibility = item.originalVisibility;
+    }
+    cachedFixedHeaders = [];
+
+    // Restore fixed footers
+    for (const item of cachedFixedFooters) {
+      item.element.style.visibility = item.originalVisibility;
+    }
+    cachedFixedFooters = [];
+
+    // Restore floating widgets
+    for (const item of cachedFloatingWidgets) {
+      item.element.style.visibility = item.originalVisibility;
+    }
+    cachedFloatingWidgets = [];
+
+    for (const item of hiddenFixedElements) {
+      item.element.style.visibility = item.originalVisibility;
+    }
+    hiddenFixedElements = [];
+
     if (activeScroller) {
       if (activeScroller.isWindow) {
-        setFixedElementsVisibility(true);
         window.scrollTo({ left: 0, top: originalScrollY, behavior: 'instant' });
       } else {
         const el = activeScroller.element;
         el.classList.remove('fps-hide-scrollbar');
         el.style.scrollBehavior = originalScrollBehavior;
         el.scrollTop = originalScrollY;
-        setFixedElementsVisibility(true);
       }
     }
-    hiddenFixedElements = [];
   }
 
   /**
    * Scroll target scroller to vertical position and await DOM reflow + GPU repaint
    */
-  function scrollToPosition(y, isFirstSlice, hideFixed, delayMs) {
+  function scrollToPosition(y, isFirstSlice, isLastSlice, hideFixed, delayMs) {
     return new Promise((resolve) => {
       if (!activeScroller) {
         getMetrics();
       }
 
-      if (hideFixed && hiddenFixedElements.length > 0) {
-        setFixedElementsVisibility(isFirstSlice);
+      if (hideFixed) {
+        setFixedElementsVisibility(isFirstSlice, isLastSlice);
       }
 
       if (activeScroller.isWindow) {
@@ -515,7 +628,9 @@
             } else {
               actualY = activeScroller.element.scrollTop || y;
             }
-            resolve({ actualY });
+
+            const links = extractSliceLinks(activeScroller, actualY);
+            resolve({ actualY, links });
           });
         });
       }, delayMs || 150);
@@ -553,6 +668,7 @@
       scrollToPosition(
         request.y,
         request.isFirstSlice,
+        request.isLastSlice,
         request.hideFixedElements,
         request.delayMs
       ).then((result) => {

@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sessionId = urlParams.get('id');
 
   if (!sessionId) {
-    showError('Invalid screenshoot session.');
+    showError('Invalid screenshot session.');
     return;
   }
 
@@ -71,14 +71,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     sessionData = storageResult[sessionId];
 
     if (!sessionData) {
-      showError('Screenshoot data not found or expired.');
+      showError('Screenshot data not found or expired.');
       return;
     }
 
-    // Set target webpage metadata
-    if (pageTitle) pageTitle.textContent = sessionData.title || 'Screenshoot';
-    if (pageUrl) pageUrl.textContent = sessionData.url || '-';
-    document.title = `${sessionData.title || 'Screenshoot'} - Full Page Screenshoot`;
+    // Set target webpage metadata with tooltip hover for truncated text
+    if (pageTitle) {
+      pageTitle.textContent = sessionData.title || 'Screenshot';
+      pageTitle.title = sessionData.title || 'Screenshot';
+    }
+    if (pageUrl) {
+      pageUrl.textContent = sessionData.url || '-';
+      pageUrl.title = sessionData.url || '-';
+    }
+    document.title = `${sessionData.title || 'Screenshot'} - Full Page Screenshot`;
 
     // Process rendering based on capture session type
     if (sessionData.type === 'fullpage') {
@@ -108,7 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     copyToClipboard(true);
   } catch (err) {
     console.error(err);
-    showError('Failed to render screenshoot: ' + err.message);
+    showError('Failed to render screenshot: ' + err.message);
   }
 
   /**

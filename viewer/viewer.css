@@ -51,6 +51,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
+  position: relative;
   z-index: 100;
   flex-shrink: 0;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
@@ -59,39 +60,53 @@ body {
 .page-meta {
   display: flex;
   align-items: center;
-  gap: 14px;
-  max-width: 35%;
+  gap: 12px;
+  max-width: calc(50% - 130px);
+  min-width: 0;
+  overflow: hidden;
+  flex-shrink: 1;
 }
 
 .app-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--accent);
+  gap: 6px;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .brand-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  -webkit-user-drag: none;
+  user-drag: none;
+  user-select: none;
+  object-fit: contain;
 }
 
 .brand-name {
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: -0.2px;
-  color: var(--text-heading);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.1px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .divider-v {
   width: 1px;
-  height: 20px;
+  height: 14px;
   background-color: var(--border-light);
+  flex-shrink: 0;
 }
 
 .target-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   overflow: hidden;
+  flex: 1;
 }
 
 .target-title {
@@ -101,6 +116,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 
 .target-url {
@@ -109,10 +125,15 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 
-/* Viewport Controls */
+/* Viewport Controls - Perfectly Centered in Top Bar */
 .view-controls {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   background-color: var(--bg-darkest);
@@ -120,6 +141,8 @@ body {
   border-radius: 4px;
   padding: 2px 4px;
   gap: 2px;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .tool-btn {
@@ -484,20 +507,20 @@ body {
   pointer-events: auto;
 }
 
-/* Toast Notification - VS Code Info Banner Style */
+/* Toast Notification - Clean Borderless Style */
 .toast {
   position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: var(--bg-bar);
+  background-color: var(--bg-card);
   color: var(--text-heading);
-  border: 1px solid var(--border-focus);
+  border: none;
   padding: 8px 18px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
-  box-shadow: var(--shadow);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   z-index: 9999;
   letter-spacing: 0.2px;
   transition: opacity 0.3s ease;

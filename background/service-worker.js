@@ -210,11 +210,13 @@ async function captureFullPage(tab, options = {}) {
     }
 
     const slices = [];
+    const allLinks = [];
     const totalSlices = yPositions.length;
 
     for (let i = 0; i < totalSlices; i++) {
       const targetY = yPositions[i];
       const isFirstSlice = (i === 0);
+      const isLastSlice = (i === totalSlices - 1);
       const percent = Math.round(((i + 1) / totalSlices) * 100);
 
       try {
@@ -226,6 +228,7 @@ async function captureFullPage(tab, options = {}) {
         action: 'scrollTo',
         y: targetY,
         isFirstSlice: isFirstSlice,
+        isLastSlice: isLastSlice,
         hideFixedElements: hideFixedElements,
         delayMs: scrollDelayMs
       });
@@ -233,6 +236,10 @@ async function captureFullPage(tab, options = {}) {
       const actualY = (scrollRes && scrollRes.scroll && typeof scrollRes.scroll.actualY === 'number')
         ? scrollRes.scroll.actualY
         : targetY;
+
+      if (scrollRes && scrollRes.scroll && Array.isArray(scrollRes.scroll.links)) {
+        allLinks.push(...scrollRes.scroll.links);
+      }
 
       // Capture visible viewport slice
       const captureOpts = imageFormat === 'jpeg'
@@ -258,6 +265,21 @@ async function captureFullPage(tab, options = {}) {
       await chrome.action.setBadgeText({ tabId, text: '' });
     } catch (e) {}
 
+    // Deduplicate collected links across overlapping slice boundaries
+    const deduplicatedLinks = [];
+    for (const link of allLinks) {
+      const isDup = deduplicatedLinks.some((item) => {
+        return item.url === link.url &&
+               Math.abs(item.x - link.x) <= 6 &&
+               Math.abs(item.y - link.y) <= 6;
+      });
+      if (!isDup) {
+        deduplicatedLinks.push(link);
+      }
+    }
+
+    const finalLinks = (deduplicatedLinks.length > 0) ? deduplicatedLinks : ((metrics && metrics.links) || []);
+
     // Store session and open viewer tab
     const now = Date.now();
     const sessionId = 'session_' + now + '_' + Math.random().toString(36).substr(2, 9);
@@ -268,8 +290,8 @@ async function captureFullPage(tab, options = {}) {
       createdAt: now,
       slices: slices,
       metrics: metrics,
-      links: (metrics && metrics.links) || [],
-      title: tab.title || 'Screenshoot',
+      links: (metrics && metrics.links) && deduplicatedLinks.length === 0 ? metrics.links : finalLinks,
+      title: tab.title || 'Screenshot',
       url: tab.url || '',
       format: imageFormat,
       quality: imageQuality
