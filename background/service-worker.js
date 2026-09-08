@@ -4,6 +4,7 @@
  */
 
 let isCapturingActive = false;
+let cancelCaptureRequested = false;
 let lastCaptureTimestamp = 0;
 
 /**
@@ -168,6 +169,7 @@ async function captureFullPage(tab, options = {}) {
   }
 
   isCapturingActive = true;
+  cancelCaptureRequested = false;
   const tabId = tab.id;
 
   const scrollDelayMs = typeof options.delayMs === 'number' ? options.delayMs : 150;
@@ -209,7 +211,14 @@ async function captureFullPage(tab, options = {}) {
       currentY += scrollStep;
     }
     if (yPositions.length === 0 || yPositions[yPositions.length - 1] < maxScrollY) {
-      yPositions.push(maxScrollY);
+      if (metrics.isSpreadsheet && metrics.spreadsheetRowHeight > 0) {
+        const snappedMaxY = Math.floor(maxScrollY / metrics.spreadsheetRowHeight) * metrics.spreadsheetRowHeight;
+        if (snappedMaxY > (yPositions[yPositions.length - 1] || 0)) {
+          yPositions.push(snappedMaxY);
+        }
+      } else {
+        yPositions.push(maxScrollY);
+      }
     }
 
     const slices = [];
@@ -217,6 +226,11 @@ async function captureFullPage(tab, options = {}) {
     const totalSlices = yPositions.length;
 
     for (let i = 0; i < totalSlices; i++) {
+      if (cancelCaptureRequested) {
+        console.log(`Capture stopped early before slice #${i + 1}/${totalSlices}`);
+        break;
+      }
+
       const targetY = yPositions[i];
       const isFirstSlice = (i === 0);
       const isLastSlice = (i === totalSlices - 1);
@@ -257,6 +271,11 @@ async function captureFullPage(tab, options = {}) {
         actualY: actualY,
         dataUrl: dataUrl
       });
+
+      if (cancelCaptureRequested) {
+        console.log(`Capture stopped early after slice #${i + 1}/${totalSlices}`);
+        break;
+      }
     }
 
     // Restore page to original state
@@ -267,6 +286,11 @@ async function captureFullPage(tab, options = {}) {
     try {
       await chrome.action.setBadgeText({ tabId, text: '' });
     } catch (e) {}
+
+    if (slices.length === 0) {
+      console.log('Capture cancelled before any slices were acquired.');
+      return { status: 'cancelled' };
+    }
 
     // Deduplicate collected links across overlapping slice boundaries
     const deduplicatedLinks = [];
@@ -308,6 +332,7 @@ async function captureFullPage(tab, options = {}) {
     return { status: 'success', sessionId };
   } finally {
     isCapturingActive = false;
+    cancelCaptureRequested = false;
   }
 }
 
@@ -315,6 +340,13 @@ async function captureFullPage(tab, options = {}) {
  * Runtime message listener
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'stopCaptureEarly') {
+    console.log('stopCaptureEarly signal received.');
+    cancelCaptureRequested = true;
+    sendResponse({ status: 'ok' });
+    return true;
+  }
+
   if (request.action === 'captureFullPage') {
     chrome.tabs.query({ active: true, currentWindow: true }).then(([activeTab]) => {
       if (!activeTab) {
@@ -342,6 +374,16 @@ chrome.action.onClicked.addListener(async (tab) => {
       setTimeout(() => {
         chrome.action.setBadgeText({ tabId: tab.id, text: '' });
       }, 2500);
+    } catch (e) {}
+    return;
+  }
+
+  if (isCapturingActive) {
+    console.log('Toolbar icon clicked while capturing: requesting early stop.');
+    cancelCaptureRequested = true;
+    try {
+      await chrome.action.setBadgeText({ tabId: tab.id, text: 'STOP' });
+      await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#f59e0b' });
     } catch (e) {}
     return;
   }

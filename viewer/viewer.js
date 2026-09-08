@@ -183,10 +183,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       const sy = Math.max(0, Math.round(cropRect.y * dpr));
       const sw = Math.min(firstImg.naturalWidth - sx, Math.round(cropRect.width * dpr));
       const sh = Math.min(firstImg.naturalHeight - sy, Math.round(cropRect.height * dpr));
+      const pinnedHeaderH = Math.round(((metrics && metrics.pinnedHeaderHeight) || 0) * dpr);
+      const isSpreadsheet = !!(metrics && metrics.isSpreadsheet);
+      const spreadsheetStepH = (isSpreadsheet && metrics && metrics.stepHeight)
+        ? Math.round(metrics.stepHeight * dpr)
+        : null;
 
-      const maxContainerReach = Math.max(
-        ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + sh)
-      );
+      let maxContainerReach = 0;
+      if (spreadsheetStepH) {
+        maxContainerReach = loadedImages.length * spreadsheetStepH;
+      } else if (pinnedHeaderH > 0) {
+        const effectiveSliceH = Math.max(1, sh - pinnedHeaderH);
+        maxContainerReach = Math.max(
+          ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + effectiveSliceH)
+        ) + pinnedHeaderH;
+      } else {
+        maxContainerReach = Math.max(
+          ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + sh)
+        );
+      }
       const bottomMargin = Math.max(0, firstImg.naturalHeight - (sy + sh));
 
       canvas.width = Math.round(firstImg.naturalWidth);
@@ -199,7 +214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadingStatusText.textContent = 'Stitching full application interface...';
       }
 
-      // 1. Draw Slice 0 at (0, 0) - renders full window width, top header, and sidebar head
+      // 1. Draw Slice 0 at (0, 0) - renders full window width, top header/toolbar, and sidebar head
       ctx.drawImage(firstImg, 0, 0);
 
       // 2. If left sidebar exists (sx > 0), extend its background cleanly down to canvas bottom
@@ -230,13 +245,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       // 3. Draw container content for each slice at its true vertical position
-      for (const item of loadedImages) {
-        const { img, slice } = item;
-        const destinationY = sy + Math.round(slice.actualY * dpr);
-        ctx.drawImage(img, sx, sy, sw, sh, sx, destinationY, sw, sh);
+      for (let i = 0; i < loadedImages.length; i++) {
+        const { img, slice } = loadedImages[i];
+        if (i === 0) {
+          // Slice 0 content is already drawn by drawImage(firstImg, 0, 0)
+          continue;
+        }
+        if (spreadsheetStepH) {
+          // For spreadsheets, draw exactly one complete quantized step height at each slice seam
+          const sliceSrcY = sy + pinnedHeaderH;
+          const destinationY = sy + pinnedHeaderH + i * spreadsheetStepH;
+          ctx.drawImage(img, sx, sliceSrcY, sw, spreadsheetStepH, sx, destinationY, sw, spreadsheetStepH);
+        } else if (pinnedHeaderH > 0) {
+          // For spreadsheets with frozen column headers, skip the duplicate header row in subsequent slices
+          const sliceSrcY = sy + pinnedHeaderH;
+          const sliceH = Math.max(1, sh - pinnedHeaderH);
+          const destinationY = sy + pinnedHeaderH + Math.round(slice.actualY * dpr);
+          ctx.drawImage(img, sx, sliceSrcY, sw, sliceH, sx, destinationY, sw, sliceH);
+        } else {
+          const destinationY = sy + Math.round(slice.actualY * dpr);
+          ctx.drawImage(img, sx, sy, sw, sh, sx, destinationY, sw, sh);
+        }
       }
 
-      // 4. If bottom margin exists (e.g. docked composer outside scroller), draw from last slice
+      // 4. If bottom margin exists (e.g. docked composer outside scroller or sheet tabs), draw from last slice
       if (bottomMargin > 0) {
         const lastImg = loadedImages[loadedImages.length - 1].img;
         const bottomSrcY = firstImg.naturalHeight - bottomMargin;
@@ -253,25 +285,66 @@ document.addEventListener('DOMContentLoaded', async () => {
       const sy = Math.max(0, Math.round(cropRect.y * dpr));
       const sw = Math.min(firstImg.naturalWidth - sx, Math.round(cropRect.width * dpr));
       const sh = Math.min(firstImg.naturalHeight - sy, Math.round(cropRect.height * dpr));
+      const pinnedHeaderH = Math.round(((metrics && metrics.pinnedHeaderHeight) || 0) * dpr);
 
-      const containerStitchedHeight = Math.max(
-        ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + sh)
-      );
+      if (pinnedHeaderH > 0) {
+        const isSpreadsheet = !!(metrics && metrics.isSpreadsheet);
+        const spreadsheetStepH = (isSpreadsheet && metrics && metrics.stepHeight)
+          ? Math.round(metrics.stepHeight * dpr)
+          : null;
 
-      canvas.width = sw;
-      canvas.height = containerStitchedHeight;
+        const effectiveSliceH = Math.max(1, sh - pinnedHeaderH);
+        const containerStitchedHeight = spreadsheetStepH
+          ? (loadedImages.length * spreadsheetStepH + pinnedHeaderH)
+          : (Math.max(
+              ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + effectiveSliceH)
+            ) + pinnedHeaderH);
 
-      ctx.fillStyle = pageBgColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+        canvas.width = sw;
+        canvas.height = containerStitchedHeight;
 
-      if (loadingStatusText) {
-        loadingStatusText.textContent = 'Stitching slices into continuous screenshot...';
-      }
+        ctx.fillStyle = pageBgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      for (const item of loadedImages) {
-        const { img, slice } = item;
-        const destinationY = Math.round(slice.actualY * dpr);
-        ctx.drawImage(img, sx, sy, sw, sh, 0, destinationY, sw, sh);
+        if (loadingStatusText) {
+          loadingStatusText.textContent = 'Stitching slices into continuous screenshot...';
+        }
+
+        // Draw slice 0 with header
+        ctx.drawImage(loadedImages[0].img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        for (let i = 1; i < loadedImages.length; i++) {
+          const { img, slice } = loadedImages[i];
+          const sliceSrcY = sy + pinnedHeaderH;
+          if (spreadsheetStepH) {
+            const destinationY = pinnedHeaderH + i * spreadsheetStepH;
+            ctx.drawImage(img, sx, sliceSrcY, sw, spreadsheetStepH, 0, destinationY, sw, spreadsheetStepH);
+          } else {
+            const sliceH = Math.max(1, sh - pinnedHeaderH);
+            const destinationY = pinnedHeaderH + Math.round(slice.actualY * dpr);
+            ctx.drawImage(img, sx, sliceSrcY, sw, sliceH, 0, destinationY, sw, sliceH);
+          }
+        }
+      } else {
+        const containerStitchedHeight = Math.max(
+          ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + sh)
+        );
+
+        canvas.width = sw;
+        canvas.height = containerStitchedHeight;
+
+        ctx.fillStyle = pageBgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (loadingStatusText) {
+          loadingStatusText.textContent = 'Stitching slices into continuous screenshot...';
+        }
+
+        for (const item of loadedImages) {
+          const { img, slice } = item;
+          const destinationY = Math.round(slice.actualY * dpr);
+          ctx.drawImage(img, sx, sy, sw, sh, 0, destinationY, sw, sh);
+        }
       }
     } else {
       // Standard full page mode (GitHub, Wikipedia, MDN, Instagram, Twitter/X, etc.)

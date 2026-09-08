@@ -15,6 +15,7 @@
   let dynamicallyHiddenElements = [];
   let cachedBlurOverlays = [];
   let cachedFixedSidebars = [];
+  let escKeyCaptureHandler = null;
 
   /**
    * Determine the effective background color of an element or the document
@@ -49,6 +50,86 @@
   function detectPrimaryScroller() {
     const winW = window.innerWidth || document.documentElement.clientWidth;
     const winH = window.innerHeight || document.documentElement.clientHeight;
+    // 0. Dedicated Spreadsheet & Data Grid Detectors (Google Sheets, FortuneSheet, Handsontable, Excel Online, ag-Grid)
+    // Google Sheets (/edit interactive mode)
+    const waffleScrollY = document.querySelector('.native-scrollbar-y, div[class*="native-scrollbar-y"], #waffleScrollbar');
+    const waffleGrid = document.querySelector('#waffle-grid-container, .waffle-grid-container, div[class*="grid-container"]');
+    if (waffleScrollY && waffleGrid) {
+      const scrollDiff = waffleScrollY.scrollHeight - waffleScrollY.clientHeight;
+      if (scrollDiff > 20 || waffleScrollY.scrollHeight > 600) {
+        return {
+          element: waffleScrollY,
+          visualElement: waffleGrid,
+          isWindow: false,
+          isSpreadsheet: true,
+          name: 'Google Sheets Waffle Scroller'
+        };
+      }
+    }
+
+    // FortuneSheet / Luckysheet
+    const luckyScrollY = document.querySelector('#luckysheet-scrollbar-y, .luckysheet-scrollbar-y');
+    const luckyGrid = document.querySelector('#luckysheet-cell-main, #fortune-sheet, .luckysheet-grid-window');
+    if (luckyScrollY && luckyGrid) {
+      const scrollDiff = luckyScrollY.scrollHeight - luckyScrollY.clientHeight;
+      if (scrollDiff > 20 || luckyScrollY.scrollHeight > 600) {
+        return {
+          element: luckyScrollY,
+          visualElement: luckyGrid,
+          isWindow: false,
+          isSpreadsheet: true,
+          name: 'FortuneSheet/Luckysheet Scroller'
+        };
+      }
+    }
+
+    // Handsontable
+    const hotHolder = document.querySelector('.ht_master .wtHolder, .handsontable .wtHolder');
+    if (hotHolder) {
+      const scrollDiff = hotHolder.scrollHeight - hotHolder.clientHeight;
+      if (scrollDiff > 40) {
+        const hotRoot = hotHolder.closest('.handsontable') || hotHolder;
+        return {
+          element: hotHolder,
+          visualElement: hotRoot,
+          isWindow: false,
+          isSpreadsheet: true,
+          name: 'Handsontable Data Grid'
+        };
+      }
+    }
+
+    // Microsoft Excel Online
+    const excelScroller = document.querySelector('.ewa-scroll-container, div[class*="ewa-scroll"]');
+    if (excelScroller) {
+      const excelGrid = document.querySelector('#m_excelWebRenderer_ewaCtl_sheetContentGrid, .ewa-grid-wrapper') || excelScroller;
+      const scrollDiff = excelScroller.scrollHeight - excelScroller.clientHeight;
+      if (scrollDiff > 40) {
+        return {
+          element: excelScroller,
+          visualElement: excelGrid,
+          isWindow: false,
+          isSpreadsheet: true,
+          name: 'Excel Online Data Grid'
+        };
+      }
+    }
+
+    // ag-Grid / Enterprise Data Grids
+    const agViewport = document.querySelector('.ag-body-viewport, .ag-center-cols-viewport');
+    if (agViewport) {
+      const scrollDiff = agViewport.scrollHeight - agViewport.clientHeight;
+      if (scrollDiff > 40) {
+        const agRoot = agViewport.closest('.ag-root-wrapper, .ag-root') || agViewport;
+        return {
+          element: agViewport,
+          visualElement: agRoot,
+          isWindow: false,
+          isSpreadsheet: true,
+          name: 'ag-Grid Data Grid'
+        };
+      }
+    }
 
     // 1. High-priority targeted selectors for well-known complex SPAs
     const knownSelectors = [
@@ -375,24 +456,75 @@
       };
     } else {
       const el = scrollerInfo.element;
-      const rect = el.getBoundingClientRect();
+      const visualEl = scrollerInfo.visualElement || el;
+      const rect = visualEl.getBoundingClientRect();
+
+      let pinnedHeaderHeight = 0;
+      let spreadsheetRowHeight = 0;
+      if (scrollerInfo.isSpreadsheet) {
+        // Check for frozen row container or column headers in Google Sheets, Luckysheet, Handsontable, etc.
+        const headerCandidates = visualEl.querySelectorAll(
+          '[class*="column-headers"], [class*="fixed-table"], [class*="grid-fixed"], .ht_clone_top, [id*="col-header"], thead, .ewa-header'
+        );
+        for (let i = 0; i < headerCandidates.length; i++) {
+          const hRect = headerCandidates[i].getBoundingClientRect();
+          if (hRect.height > 15 && hRect.height < rect.height * 0.4 && hRect.top >= rect.top - 5 && hRect.top <= rect.top + 10) {
+            if (hRect.height > pinnedHeaderHeight) {
+              pinnedHeaderHeight = Math.round(hRect.height);
+            }
+          }
+        }
+        // If Google Sheets waffle canvas is used without explicit header element height, check column-headers-background
+        if (pinnedHeaderHeight === 0 && (document.querySelector('.waffle-grid-container, #waffle-grid-container') || (scrollerInfo.name && scrollerInfo.name.includes('Google Sheets')))) {
+          const colBg = visualEl.querySelector('.column-headers-background, [class*="column-headers"]');
+          if (colBg && colBg.offsetHeight > 15) {
+            pinnedHeaderHeight = Math.round(colBg.offsetHeight);
+          }
+        }
+
+        // Detect discrete spreadsheet row height for seamless slice row snapping
+        const rowCandidates = visualEl.querySelectorAll('tr, [role="row"], .ag-row, .ht_master tbody tr');
+        for (let i = 0; i < rowCandidates.length; i++) {
+          const rH = rowCandidates[i].offsetHeight;
+          if (rH >= 16 && rH <= 120) {
+            spreadsheetRowHeight = Math.round(rH);
+            break;
+          }
+        }
+        if (!spreadsheetRowHeight) {
+          // Standard default for Google Sheets canvas waffle-grid-container
+          spreadsheetRowHeight = 21;
+        }
+      }
 
       const cropX = Math.max(0, Math.round(rect.left));
       const cropY = Math.max(0, Math.round(rect.top));
       const cropW = Math.min(winW - cropX, Math.round(rect.width));
       const cropH = Math.min(winH - cropY, Math.round(rect.height));
-      const stepHeight = Math.max(150, cropH - bottomBarHeight);
+
+      const availableH = Math.max(100, cropH - bottomBarHeight - pinnedHeaderHeight);
+      let stepHeight = availableH;
+      if (scrollerInfo.isSpreadsheet && spreadsheetRowHeight > 0) {
+        // Snap stepHeight to an exact multiple of integer rows to eliminate chopped rows and seam fractures
+        const completeRows = Math.floor(availableH / spreadsheetRowHeight);
+        stepHeight = Math.max(spreadsheetRowHeight * 2, completeRows * spreadsheetRowHeight);
+      } else {
+        stepHeight = Math.max(150, availableH);
+      }
 
       return {
         isContainer: true,
+        isSpreadsheet: !!scrollerInfo.isSpreadsheet,
+        spreadsheetRowHeight,
+        pinnedHeaderHeight,
         scrollHeight: el.scrollHeight,
-        scrollWidth: el.scrollWidth,
+        scrollWidth: Math.max(el.scrollWidth, visualEl.scrollWidth || 0),
         clientHeight: el.clientHeight,
-        clientWidth: el.clientWidth,
+        clientWidth: visualEl.clientWidth || el.clientWidth,
         windowWidth: winW,
         windowHeight: winH,
         devicePixelRatio: dpr,
-        backgroundColor: getEffectiveBackgroundColor(el),
+        backgroundColor: getEffectiveBackgroundColor(visualEl),
         title: document.title || 'Screenshoot',
         url: window.location.href,
         bottomBarHeight,
@@ -436,6 +568,10 @@
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i];
       if (el.id && el.id.startsWith('fps-')) continue;
+      if (activeScroller) {
+        if (activeScroller.element === el) continue;
+        if (activeScroller.visualElement && (activeScroller.visualElement === el || activeScroller.visualElement.contains(el))) continue;
+      }
 
       const style = window.getComputedStyle(el);
       const position = style.position;
@@ -564,25 +700,30 @@
 
       // 2c. Fixed Top Headers (Visible ONLY on slice 0)
       const isHeaderLike = className.includes('header') || className.includes('navbar') || className.includes('navtab') ||
-                           id.includes('header') || id.includes('navbar') || tag === 'header' || tag === 'nav';
-      if (isFixed && (rect.top <= 65 || isHeaderLike) && rect.top < 120 && rect.height < winH * 0.35) {
+                           className.includes('toolbar') || className.includes('formula') || className.includes('docs-chrome') ||
+                           className.includes('ewa-ribbon') || id.includes('header') || id.includes('navbar') ||
+                           id.includes('toolbar') || id.includes('formula') || id.includes('docs-chrome') ||
+                           id.includes('luckysheet-wa-calculate') || tag === 'header' || tag === 'nav';
+      if (isFixed && (rect.top <= 65 || isHeaderLike) && rect.top < 150 && rect.height < winH * 0.35) {
         cachedFixedHeaders.push(record);
         hiddenFixedElements.push(record);
         continue;
       }
 
-      // 2c. Fixed Bottom Footers / Prompt Input Bars (Visible ONLY on the last slice)
+      // 2c. Fixed Bottom Footers / Prompt Input Bars / Sheet Tab Bars (Visible ONLY on the last slice)
       const isPromptBar =
         tag.includes('input') || tag.includes('composer') || tag.includes('textarea') ||
         tag.includes('rich-textarea') || tag.includes('disclaimer') ||
         className.includes('input') || className.includes('composer') ||
         className.includes('prompt') || className.includes('chat-bar') ||
         className.includes('bottom-container') || className.includes('disclaimer') ||
-        className.includes('gradient') ||
-        id.includes('input') || id.includes('prompt') || id.includes('composer');
+        className.includes('gradient') || className.includes('sheet-tab') ||
+        className.includes('sheet-area') || className.includes('ewa-sheet-tabs') ||
+        id.includes('input') || id.includes('prompt') || id.includes('composer') ||
+        id.includes('sheet-tab') || id.includes('docs-sheet-tab-bar') || id.includes('sheetTabs');
 
       const isBottomDocked = (rect.bottom >= winH - 65 && rect.top > winH * 0.35 && rect.height < winH * 0.45);
-      const isScroller = (activeScroller && activeScroller.element === el);
+      const isScroller = (activeScroller && (activeScroller.element === el || (activeScroller.visualElement && activeScroller.visualElement === el)));
 
       if (!isScroller && isBottomDocked && (isFixed || isPromptBar || (isAbsolute && el.parentElement === document.body))) {
         record.preserveLayout = (position !== 'fixed' && position !== 'absolute');
@@ -1027,6 +1168,20 @@
       document.body.classList.add('fps-hide-scrollbar', 'fps-capturing');
     }
 
+    // Listen for ESC key to conclude capture early and finalize captured slices
+    if (!escKeyCaptureHandler) {
+      escKeyCaptureHandler = function (e) {
+        if (e.key === 'Escape' || e.code === 'Escape' || e.keyCode === 27) {
+          e.preventDefault();
+          e.stopPropagation();
+          try {
+            chrome.runtime.sendMessage({ action: 'stopCaptureEarly' });
+          } catch (err) {}
+        }
+      };
+      window.addEventListener('keydown', escKeyCaptureHandler, true);
+    }
+
     if (activeScroller.isWindow) {
       originalScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
       originalScrollBehavior = document.documentElement.style.scrollBehavior || '';
@@ -1043,6 +1198,9 @@
       originalScrollBehavior = el.style.scrollBehavior || '';
       el.style.scrollBehavior = 'auto';
       el.classList.add('fps-hide-scrollbar');
+      if (activeScroller.visualElement) {
+        activeScroller.visualElement.classList.add('fps-hide-scrollbar');
+      }
       if (hideFixedElements) {
         findAndCacheFixedElements();
       }
@@ -1121,9 +1279,18 @@
       } else {
         const el = activeScroller.element;
         el.classList.remove('fps-hide-scrollbar');
+        if (activeScroller.visualElement) {
+          activeScroller.visualElement.classList.remove('fps-hide-scrollbar');
+        }
         el.style.scrollBehavior = originalScrollBehavior;
         el.scrollTop = originalScrollY;
       }
+    }
+
+    // Detach ESC key listener
+    if (escKeyCaptureHandler) {
+      window.removeEventListener('keydown', escKeyCaptureHandler, true);
+      escKeyCaptureHandler = null;
     }
   }
 
@@ -1149,12 +1316,16 @@
       } else {
         const el = activeScroller.element;
         el.scrollTop = y;
-        // Trigger synthetic scroll event for reactive SPAs (DeepSeek, Gemini, Twitch, ChatGPT)
-        el.dispatchEvent(new Event('scroll', { bubbles: true }));
-        window.dispatchEvent(new Event('scroll'));
+        // Trigger synthetic scroll event for reactive SPAs (DeepSeek, Gemini, Twitch, ChatGPT, Google Sheets)
+        // Note: bubbles: false prevents window-level reset listeners (e.g. Google Sheets resetting scroll to 0)
+        el.dispatchEvent(new Event('scroll', { bubbles: false }));
+        if (activeScroller.isSpreadsheet && activeScroller.visualElement) {
+          activeScroller.visualElement.dispatchEvent(new Event('scroll', { bubbles: false }));
+        }
       }
 
-      // Wait for rendering and dynamic SPA DOM reflow (default 150ms)
+      // Wait for rendering and dynamic SPA DOM reflow (default 150ms, 250ms for spreadsheets)
+      const effectiveDelay = delayMs || (activeScroller && activeScroller.isSpreadsheet ? 250 : 150);
       setTimeout(async () => {
         // Await visible images to load and decode before capturing slice
         await awaitSliceImagesLoaded();

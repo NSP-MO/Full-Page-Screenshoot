@@ -79,4 +79,18 @@ body.fps-capturing input-container [class*="gradient"] {
   pointer-events: none !important;
 }
 
+/* Hide native scrollbars in spreadsheets without breaking scroll events or resetting scrollTop */
+html.fps-capturing .native-scrollbar,
+html.fps-capturing [class*="native-scrollbar"],
+html.fps-capturing [class*="scrollbar-y"],
+html.fps-capturing [class*="scrollbar-x"],
+body.fps-capturing .native-scrollbar,
+body.fps-capturing [class*="native-scrollbar"],
+body.fps-capturing [class*="scrollbar-y"],
+body.fps-capturing [class*="scrollbar-x"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+
 
