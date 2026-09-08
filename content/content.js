@@ -251,6 +251,11 @@
 
     // Detect persistent left navigation sidebar (e.g. Instagram, Twitter/X, Discord, Docs)
     let leftSidebarWidth = 0;
+    let leftSidebarBgColor = '';
+    let leftSidebarBorderColor = '';
+    let leftSidebarBorderWidth = 1;
+    let detectedSidebarEl = null;
+
     const sidebarCandidates = document.querySelectorAll(
       'nav, aside, header, [role="navigation"], [role="banner"], [class*="sidebar"], [class*="nav"], [class*="menu"], [id*="sidebar"], [id*="nav"], [class*="x9f619"]'
     );
@@ -269,6 +274,7 @@
           sRect.width >= 40 && sRect.width < winW * 0.45) {
         if (sRect.width > leftSidebarWidth) {
           leftSidebarWidth = Math.round(sRect.width);
+          detectedSidebarEl = sEl;
         }
       }
     }
@@ -292,8 +298,33 @@
             tRect.width >= 40 && tRect.width < winW * 0.45) {
           if (tRect.width > leftSidebarWidth) {
             leftSidebarWidth = Math.round(tRect.width);
+            detectedSidebarEl = tEl;
           }
         }
+      }
+    }
+
+    if (detectedSidebarEl) {
+      leftSidebarBgColor = getEffectiveBackgroundColor(detectedSidebarEl);
+      if ((!leftSidebarBgColor || leftSidebarBgColor === '#1f1f1f') && detectedSidebarEl.firstElementChild) {
+        const childBg = getEffectiveBackgroundColor(detectedSidebarEl.firstElementChild);
+        if (childBg && childBg !== '#1f1f1f') {
+          leftSidebarBgColor = childBg;
+        }
+      }
+      const sStyle = window.getComputedStyle(detectedSidebarEl);
+      let bColor = sStyle.borderRightColor;
+      let bWidth = parseInt(sStyle.borderRightWidth);
+      if ((!bColor || bColor === 'transparent' || bColor === 'rgba(0, 0, 0, 0)' || !bWidth) && detectedSidebarEl.firstElementChild) {
+        const cStyle = window.getComputedStyle(detectedSidebarEl.firstElementChild);
+        if (cStyle.borderRightColor && cStyle.borderRightColor !== 'transparent' && cStyle.borderRightColor !== 'rgba(0, 0, 0, 0)' && parseInt(cStyle.borderRightWidth) > 0) {
+          bColor = cStyle.borderRightColor;
+          bWidth = parseInt(cStyle.borderRightWidth);
+        }
+      }
+      if (bColor && bColor !== 'transparent' && bColor !== 'rgba(0, 0, 0, 0)' && bWidth > 0) {
+        leftSidebarBorderColor = bColor;
+        leftSidebarBorderWidth = bWidth;
       }
     }
 
@@ -331,6 +362,9 @@
         url: window.location.href,
         bottomBarHeight,
         leftSidebarWidth,
+        leftSidebarBgColor,
+        leftSidebarBorderColor,
+        leftSidebarBorderWidth,
         stepHeight,
         cropRect: {
           x: 0,
@@ -363,6 +397,9 @@
         url: window.location.href,
         bottomBarHeight,
         leftSidebarWidth,
+        leftSidebarBgColor,
+        leftSidebarBorderColor,
+        leftSidebarBorderWidth,
         stepHeight,
         cropRect: {
           x: cropX,

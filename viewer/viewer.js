@@ -118,6 +118,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
+   * Helper to check if a CSS color string represents a dark or light background
+   */
+  function isDarkColor(colorStr) {
+    if (!colorStr) return true;
+    if (colorStr.startsWith('#')) {
+      const hex = colorStr.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16) || 0;
+      const g = parseInt(hex.substr(2, 2), 16) || 0;
+      const b = parseInt(hex.substr(4, 2), 16) || 0;
+      return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+    }
+    const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+      const r = parseInt(match[1], 10);
+      const g = parseInt(match[2], 10);
+      const b = parseInt(match[3], 10);
+      return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+    }
+    return true;
+  }
+
+  /**
    * Stitch vertical slices into a unified master canvas
    */
   async function stitchFullPage(data) {
@@ -182,14 +204,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // 2. If left sidebar exists (sx > 0), extend its background cleanly down to canvas bottom
       if (sx > 0 && canvas.height > firstImg.naturalHeight) {
-        const sampleStripH = Math.min(40, Math.max(10, Math.round(firstImg.naturalHeight * 0.05)));
-        const sampleSrcY = firstImg.naturalHeight - sampleStripH - bottomMargin;
-        const targetExtendH = canvas.height - firstImg.naturalHeight;
-        ctx.drawImage(
-          firstImg,
-          0, Math.max(sy, sampleSrcY), sx, sampleStripH,
-          0, firstImg.naturalHeight - bottomMargin, sx, targetExtendH + bottomMargin
-        );
+        let sidebarBg = (metrics && metrics.leftSidebarBgColor) || '';
+        if (!sidebarBg || sidebarBg === 'transparent' || sidebarBg === 'rgba(0, 0, 0, 0)') {
+          sidebarBg = pageBgColor;
+        }
+        let sidebarBorder = (metrics && metrics.leftSidebarBorderColor) || '';
+        const sidebarBorderW = Math.max(1, Math.round(((metrics && metrics.leftSidebarBorderWidth) || 1) * dpr));
+        if (!sidebarBorder || sidebarBorder === 'transparent' || sidebarBorder === 'rgba(0, 0, 0, 0)') {
+          const isDark = isDarkColor(sidebarBg);
+          sidebarBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+        }
+
+        const extendStartY = firstImg.naturalHeight - bottomMargin;
+        const targetExtendH = canvas.height - extendStartY;
+
+        if (targetExtendH > 0) {
+          // Fill sidebar extension column with clean background color - NEVER stretch image strips
+          ctx.fillStyle = sidebarBg;
+          ctx.fillRect(0, extendStartY, sx, targetExtendH);
+
+          // Draw clean continuous vertical divider line along the right edge of the sidebar
+          ctx.fillStyle = sidebarBorder;
+          ctx.fillRect(sx - sidebarBorderW, extendStartY, sidebarBorderW, targetExtendH);
+        }
       }
 
       // 3. Draw container content for each slice at its true vertical position
@@ -262,14 +299,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 2. If a persistent left sidebar exists and canvas height exceeds viewport:
       // Extend the sidebar background and vertical divider line down to the bottom of the canvas
       if (leftSidebarW > 0 && canvas.height > firstImg.naturalHeight) {
-        const sampleStripH = Math.min(40, Math.max(10, Math.round(firstImg.naturalHeight * 0.05)));
-        const sampleSrcY = firstImg.naturalHeight - sampleStripH - bottomBarH;
-        const targetExtendH = canvas.height - firstImg.naturalHeight;
-        ctx.drawImage(
-          firstImg,
-          0, Math.max(0, sampleSrcY), leftSidebarW, sampleStripH,
-          0, firstImg.naturalHeight - bottomBarH, leftSidebarW, targetExtendH + bottomBarH
-        );
+        let sidebarBg = (metrics && metrics.leftSidebarBgColor) || '';
+        if (!sidebarBg || sidebarBg === 'transparent' || sidebarBg === 'rgba(0, 0, 0, 0)') {
+          sidebarBg = pageBgColor;
+        }
+        let sidebarBorder = (metrics && metrics.leftSidebarBorderColor) || '';
+        const sidebarBorderW = Math.max(1, Math.round(((metrics && metrics.leftSidebarBorderWidth) || 1) * dpr));
+        if (!sidebarBorder || sidebarBorder === 'transparent' || sidebarBorder === 'rgba(0, 0, 0, 0)') {
+          const isDark = isDarkColor(sidebarBg);
+          sidebarBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+        }
+
+        const extendStartY = firstImg.naturalHeight - bottomBarH;
+        const targetExtendH = canvas.height - extendStartY;
+
+        if (targetExtendH > 0) {
+          // Fill sidebar extension column with clean background color - NEVER stretch image strips
+          ctx.fillStyle = sidebarBg;
+          ctx.fillRect(0, extendStartY, leftSidebarW, targetExtendH);
+
+          // Draw clean continuous vertical divider line along the right edge of the sidebar
+          ctx.fillStyle = sidebarBorder;
+          ctx.fillRect(leftSidebarW - sidebarBorderW, extendStartY, sidebarBorderW, targetExtendH);
+        }
       }
 
       // 3. Draw remaining slices
