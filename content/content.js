@@ -12,6 +12,9 @@
   let cachedFixedFooters = [];
   let cachedFloatingWidgets = [];
   let unhitchedStickyElements = [];
+  let dynamicallyHiddenElements = [];
+  let cachedBlurOverlays = [];
+  let cachedFixedSidebars = [];
 
   /**
    * Determine the effective background color of an element or the document
@@ -49,6 +52,15 @@
 
     // 1. High-priority targeted selectors for well-known complex SPAs
     const knownSelectors = [
+      // Google Gemini conversation scroller
+      'infinite-scroller.chat-history',
+      'infinite-scroller',
+      '#chat-history',
+      '.conversation-container',
+      'div[class*="chat-history"]',
+      'div[class*="conversation-container"]',
+      'chat-window',
+      'ms-chat-container',
       // DeepSeek chat container
       '.ds-chat-message-list',
       'main div[class*="overflow-y-auto"]',
@@ -120,7 +132,9 @@
     }
 
     // 3. Scan DOM for internal scrollable containers (SPAs, chat lists, feeds)
-    const candidates = document.querySelectorAll('div, main, section, article');
+    const candidates = document.querySelectorAll(
+      'div, main, section, article, infinite-scroller, chat-window, ms-chat-container, [role="region"], [role="main"], [role="feed"], [class*="scroll"], [class*="chat"], [class*="conversation"], [class*="history"]'
+    );
     let bestEl = null;
     let bestScore = -1;
 
@@ -152,7 +166,9 @@
               score *= 2.2;
             }
             if (className.includes('chat') || className.includes('message') || className.includes('conversation') ||
-                className.includes('stream') || className.includes('content') || className.includes('editor')) {
+                className.includes('stream') || className.includes('content') || className.includes('editor') ||
+                className.includes('history') || tag.includes('scroller') || tag.includes('chat') ||
+                id.includes('chat') || id.includes('conversation') || id.includes('history')) {
               score *= 1.8;
             }
 
@@ -209,6 +225,78 @@
     const winW = window.innerWidth || document.documentElement.clientWidth;
     const winH = window.innerHeight || document.documentElement.clientHeight;
 
+    // Detect bottom-docked prompt bars, input containers, disclaimers, or composer widgets
+    let bottomBarHeight = 0;
+    const bottomCandidates = document.querySelectorAll(
+      'input-container, rich-textarea, textarea, [class*="input"], [class*="composer"], [class*="prompt"], [class*="bottom-container"], [class*="gradient"], [class*="disclaimer"]'
+    );
+    let minBottomTop = winH;
+    for (let i = 0; i < bottomCandidates.length; i++) {
+      const bEl = bottomCandidates[i];
+      if (bEl.id && bEl.id.startsWith('fps-')) continue;
+      if (!scrollerInfo.isWindow && scrollerInfo.element === bEl) continue;
+      const bStyle = window.getComputedStyle(bEl);
+      if (bStyle.display === 'none' || bStyle.visibility === 'hidden') continue;
+      const bRect = bEl.getBoundingClientRect();
+      if (bRect.width > 200 && bRect.height >= 30 && bRect.height < winH * 0.45 &&
+          bRect.bottom >= winH - 65 && bRect.top > winH * 0.35) {
+        if (bRect.top < minBottomTop) {
+          minBottomTop = bRect.top;
+        }
+      }
+    }
+    if (minBottomTop < winH) {
+      bottomBarHeight = Math.max(0, Math.round(winH - minBottomTop));
+    }
+
+    // Detect persistent left navigation sidebar (e.g. Instagram, Twitter/X, Discord, Docs)
+    let leftSidebarWidth = 0;
+    const sidebarCandidates = document.querySelectorAll(
+      'nav, aside, header, [role="navigation"], [role="banner"], [class*="sidebar"], [class*="nav"], [class*="menu"], [id*="sidebar"], [id*="nav"], [class*="x9f619"]'
+    );
+    for (let i = 0; i < sidebarCandidates.length; i++) {
+      const sEl = sidebarCandidates[i];
+      if (sEl.id && sEl.id.startsWith('fps-')) continue;
+      if (!scrollerInfo.isWindow && scrollerInfo.element === sEl) continue;
+      const sStyle = window.getComputedStyle(sEl);
+      if (sStyle.display === 'none' || sStyle.visibility === 'hidden') continue;
+      const pos = sStyle.position;
+      if (pos !== 'fixed' && pos !== 'sticky') continue;
+      const sRect = sEl.getBoundingClientRect();
+      if (sRect.left <= 25 && sRect.left >= -15 &&
+          sRect.top <= 100 && sRect.top >= -15 &&
+          sRect.height >= winH * 0.55 &&
+          sRect.width >= 40 && sRect.width < winW * 0.45) {
+        if (sRect.width > leftSidebarWidth) {
+          leftSidebarWidth = Math.round(sRect.width);
+        }
+      }
+    }
+
+    // Fallback: check top-level direct children if semantic selectors missed the sidebar
+    if (leftSidebarWidth === 0) {
+      const topLevelChildren = (document.body ? Array.from(document.body.children) : []).concat(
+        Array.from(document.documentElement.children)
+      );
+      for (const tEl of topLevelChildren) {
+        if (tEl.id && tEl.id.startsWith('fps-')) continue;
+        if (!scrollerInfo.isWindow && scrollerInfo.element === tEl) continue;
+        const tStyle = window.getComputedStyle(tEl);
+        if (tStyle.display === 'none' || tStyle.visibility === 'hidden') continue;
+        const pos = tStyle.position;
+        if (pos !== 'fixed' && pos !== 'sticky') continue;
+        const tRect = tEl.getBoundingClientRect();
+        if (tRect.left <= 25 && tRect.left >= -15 &&
+            tRect.top <= 100 && tRect.top >= -15 &&
+            tRect.height >= winH * 0.55 &&
+            tRect.width >= 40 && tRect.width < winW * 0.45) {
+          if (tRect.width > leftSidebarWidth) {
+            leftSidebarWidth = Math.round(tRect.width);
+          }
+        }
+      }
+    }
+
     if (scrollerInfo.isWindow) {
       const doc = document.documentElement;
       const body = document.body;
@@ -227,6 +315,8 @@
         doc.clientWidth
       );
 
+      const stepHeight = Math.max(150, winH - bottomBarHeight);
+
       return {
         isContainer: false,
         scrollHeight,
@@ -239,6 +329,9 @@
         backgroundColor: getEffectiveBackgroundColor(body || doc),
         title: document.title || 'Screenshoot',
         url: window.location.href,
+        bottomBarHeight,
+        leftSidebarWidth,
+        stepHeight,
         cropRect: {
           x: 0,
           y: 0,
@@ -254,6 +347,7 @@
       const cropY = Math.max(0, Math.round(rect.top));
       const cropW = Math.min(winW - cropX, Math.round(rect.width));
       const cropH = Math.min(winH - cropY, Math.round(rect.height));
+      const stepHeight = Math.max(150, cropH - bottomBarHeight);
 
       return {
         isContainer: true,
@@ -267,6 +361,9 @@
         backgroundColor: getEffectiveBackgroundColor(el),
         title: document.title || 'Screenshoot',
         url: window.location.href,
+        bottomBarHeight,
+        leftSidebarWidth,
+        stepHeight,
         cropRect: {
           x: cropX,
           y: cropY,
@@ -288,7 +385,10 @@
     cachedFixedHeaders = [];
     cachedFixedFooters = [];
     cachedFloatingWidgets = [];
+    cachedFixedSidebars = [];
     unhitchedStickyElements = [];
+    dynamicallyHiddenElements = [];
+    cachedBlurOverlays = [];
 
     const winW = window.innerWidth || document.documentElement.clientWidth;
     const winH = window.innerHeight || document.documentElement.clientHeight;
@@ -307,69 +407,182 @@
 
       if (display === 'none' || visibility === 'hidden') continue;
 
-      // 1. Un-hitch position: sticky elements so they flow naturally with their message/section
-      if (position === 'sticky') {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          unhitchedStickyElements.push({
-            element: el,
-            originalPosition: el.style.position
-          });
-          el.style.setProperty('position', 'relative', 'important');
-        }
+      const backdropFilter = style.backdropFilter || style.webkitBackdropFilter || '';
+      const filter = style.filter || '';
+      const className = (typeof el.className === 'string' ? el.className : '').toLowerCase();
+      const id = (typeof el.id === 'string' ? el.id : '').toLowerCase();
+      const tag = el.tagName.toLowerCase();
+
+      // 0. Detect and suppress frosted-glass blur overlays and gradient scrims (e.g., Gemini .blur-bg, .bottom-gradient)
+      const hasBackdropBlur = backdropFilter.includes('blur');
+      const isScrimOrGradient =
+        className.includes('blur-bg') ||
+        className.includes('autosuggest-scrim') ||
+        className.includes('chat-scrim') ||
+        className.includes('bottom-gradient') ||
+        className.includes('top-gradient') ||
+        className.includes('gradient-container') ||
+        (className.includes('scrim') && (position === 'absolute' || position === 'fixed' || position === 'sticky')) ||
+        id.includes('scrim') ||
+        id.includes('gradient');
+
+      if (hasBackdropBlur || isScrimOrGradient) {
+        const blurRecord = {
+          element: el,
+          originalDisplay: el.style.display,
+          originalVisibility: el.style.visibility,
+          originalOpacity: el.style.opacity,
+          originalPointerEvents: el.style.pointerEvents,
+          originalBackdropFilter: el.style.backdropFilter,
+          originalWebkitBackdropFilter: el.style.webkitBackdropFilter,
+          originalFilter: el.style.filter
+        };
+        cachedBlurOverlays.push(blurRecord);
+        hideElementFully(el);
+        el.style.setProperty('backdrop-filter', 'none', 'important');
+        el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+        el.style.setProperty('filter', 'none', 'important');
         continue;
       }
 
-      // 2. Fixed elements (and absolute bottom-docked overlays)
-      if (position === 'fixed' || (position === 'absolute' && el.parentElement === document.body)) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) continue;
+      // 1. Un-hitch position: sticky elements so they flow naturally with their message/section
+      if (position === 'sticky') {
+        unhitchedStickyElements.push({
+          element: el,
+          originalPosition: el.style.position
+        });
+        el.style.setProperty('position', 'relative', 'important');
+        continue;
+      }
 
-        const className = (typeof el.className === 'string' ? el.className : '').toLowerCase();
-        const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
-        const id = (typeof el.id === 'string' ? el.id : '').toLowerCase();
+      // 2. Fixed elements (and bottom-docked composer/prompt overlays)
+      const isFixed = (position === 'fixed');
+      const isAbsolute = (position === 'absolute');
 
-        // 2a. Floating Action Buttons / Transient Controls (Scroll to bottom, quick prompts, jump buttons)
-        const isFloatingControl =
-          (rect.width < 110 && rect.height < 110 && (rect.left > winW * 0.4 || rect.top > winH * 0.5)) ||
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+
+      const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+
+      // 2a. Floating Action Buttons / Transient Controls (Scroll to bottom, quick prompts, jump buttons)
+      const isContentElement = (
+        tag === 'img' || tag === 'picture' || tag === 'video' || tag === 'canvas' ||
+        tag === 'source' || tag === 'span' || tag === 'p' || tag === 'h1' ||
+        tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6' ||
+        tag === 'li' || tag === 'tr' || tag === 'td' || tag === 'article' || tag === 'section'
+      );
+
+      const isFloatingControl =
+        !isContentElement &&
+        (isFixed || (isAbsolute && (el.parentElement === document.body || el.parentElement === document.documentElement))) && (
           className.includes('scroll-to-bottom') ||
           className.includes('scroll-bottom') ||
           className.includes('back-to-bottom') ||
           className.includes('jump-to-bottom') ||
           ariaLabel.includes('scroll to bottom') ||
-          ariaLabel.includes('bottom') ||
-          id.includes('scroll-bottom');
+          ariaLabel.includes('jump to bottom') ||
+          id.includes('scroll-bottom') ||
+          (rect.width <= 90 && rect.height <= 90 && (
+            (rect.bottom >= winH - 90 && rect.right >= winW - 90) ||
+            (rect.bottom >= winH - 90 && rect.left <= 90)
+          ))
+        );
 
-        const record = {
-          element: el,
-          originalVisibility: el.style.visibility
-        };
+      const record = {
+        element: el,
+        originalDisplay: el.style.display,
+        originalVisibility: el.style.visibility,
+        originalOpacity: el.style.opacity,
+        originalPointerEvents: el.style.pointerEvents
+      };
 
-        if (isFloatingControl) {
-          cachedFloatingWidgets.push(record);
-          hiddenFixedElements.push(record);
-          el.style.setProperty('visibility', 'hidden', 'important');
-          continue;
+      if (isFloatingControl) {
+        cachedFloatingWidgets.push(record);
+        hiddenFixedElements.push(record);
+        hideElementFully(el);
+        continue;
+      }
+
+      // 2b. Fixed Left Navigation Sidebars (e.g. Instagram, Twitter/X, Reddit, Discord, docs)
+      const isLeftSidebar =
+        (isFixed || (position === 'sticky' && rect.top <= 25)) &&
+        rect.left <= 25 && rect.left >= -15 &&
+        rect.top <= 100 && rect.top >= -15 &&
+        rect.height >= winH * 0.55 &&
+        rect.width >= 40 && rect.width < winW * 0.45;
+
+      if (isLeftSidebar) {
+        const isChildOfExisting = cachedFixedSidebars.some((item) => item.element.contains(el));
+        if (!isChildOfExisting) {
+          const existingChildIdx = cachedFixedSidebars.findIndex((item) => el.contains(item.element));
+          if (existingChildIdx >= 0) {
+            cachedFixedSidebars[existingChildIdx] = record;
+          } else {
+            cachedFixedSidebars.push(record);
+          }
         }
+        hiddenFixedElements.push(record);
+        continue;
+      }
 
-        // 2b. Fixed Top Headers (Visible ONLY on slice 0)
-        if (rect.top <= 35 && rect.height < winH * 0.35) {
-          cachedFixedHeaders.push(record);
-          hiddenFixedElements.push(record);
-          continue;
-        }
+      // 2c. Fixed Top Headers (Visible ONLY on slice 0)
+      const isHeaderLike = className.includes('header') || className.includes('navbar') || className.includes('navtab') ||
+                           id.includes('header') || id.includes('navbar') || tag === 'header' || tag === 'nav';
+      if (isFixed && (rect.top <= 65 || isHeaderLike) && rect.top < 120 && rect.height < winH * 0.35) {
+        cachedFixedHeaders.push(record);
+        hiddenFixedElements.push(record);
+        continue;
+      }
 
-        // 2c. Fixed Bottom Footers / Prompt Input Bars (Visible ONLY on the last slice)
-        if (rect.bottom >= winH - 35 && rect.height < winH * 0.45) {
-          cachedFixedFooters.push(record);
-          hiddenFixedElements.push(record);
-          continue;
-        }
+      // 2c. Fixed Bottom Footers / Prompt Input Bars (Visible ONLY on the last slice)
+      const isPromptBar =
+        tag.includes('input') || tag.includes('composer') || tag.includes('textarea') ||
+        tag.includes('rich-textarea') || tag.includes('disclaimer') ||
+        className.includes('input') || className.includes('composer') ||
+        className.includes('prompt') || className.includes('chat-bar') ||
+        className.includes('bottom-container') || className.includes('disclaimer') ||
+        className.includes('gradient') ||
+        id.includes('input') || id.includes('prompt') || id.includes('composer');
 
-        // 2d. General fixed overlays
+      const isBottomDocked = (rect.bottom >= winH - 65 && rect.top > winH * 0.35 && rect.height < winH * 0.45);
+      const isScroller = (activeScroller && activeScroller.element === el);
+
+      if (!isScroller && isBottomDocked && (isFixed || isPromptBar || (isAbsolute && el.parentElement === document.body))) {
+        record.preserveLayout = (position !== 'fixed' && position !== 'absolute');
+        cachedFixedFooters.push(record);
+        hiddenFixedElements.push(record);
+        continue;
+      }
+
+      // 2d. General fixed overlays
+      if (isFixed || (isAbsolute && el.parentElement === document.body)) {
         hiddenFixedElements.push(record);
       }
     }
+  }
+
+  /**
+   * Helper to completely hide a fixed/floating element and suppress all child rendering
+   */
+  function hideElementFully(el) {
+    if (!el || !el.style) return;
+    el.style.setProperty('display', 'none', 'important');
+    el.style.setProperty('visibility', 'hidden', 'important');
+    el.style.setProperty('opacity', '0', 'important');
+    el.style.setProperty('pointer-events', 'none', 'important');
+    el.classList.add('fps-element-hidden-temporarily');
+  }
+
+  /**
+   * Helper to restore a fixed/floating element to its original state
+   */
+  function restoreElementFully(item) {
+    if (!item || !item.element || !item.element.style) return;
+    item.element.style.display = item.originalDisplay;
+    item.element.style.visibility = item.originalVisibility;
+    item.element.style.opacity = item.originalOpacity;
+    item.element.style.pointerEvents = item.originalPointerEvents;
+    item.element.classList.remove('fps-element-hidden-temporarily');
   }
 
   /**
@@ -381,24 +594,43 @@
     // Top headers: visible only on slice 0
     for (const item of cachedFixedHeaders) {
       if (isFirstSlice) {
-        item.element.style.visibility = item.originalVisibility;
+        restoreElementFully(item);
       } else {
-        item.element.style.setProperty('visibility', 'hidden', 'important');
+        hideElementFully(item.element);
       }
     }
 
     // Bottom prompt bars / footers: visible only on the last slice
     for (const item of cachedFixedFooters) {
       if (isLastSlice) {
-        item.element.style.visibility = item.originalVisibility;
+        restoreElementFully(item);
+      } else {
+        if (item.preserveLayout) {
+          item.element.style.setProperty('visibility', 'hidden', 'important');
+          item.element.style.setProperty('opacity', '0', 'important');
+          item.element.style.setProperty('pointer-events', 'none', 'important');
+          item.element.classList.add('fps-element-hidden-temporarily');
+        } else {
+          hideElementFully(item.element);
+        }
+      }
+    }
+
+    // Fixed left sidebars: visible on slice 0, hidden with preserved layout on subsequent slices
+    for (const item of cachedFixedSidebars) {
+      if (isFirstSlice) {
+        restoreElementFully(item);
       } else {
         item.element.style.setProperty('visibility', 'hidden', 'important');
+        item.element.style.setProperty('opacity', '0', 'important');
+        item.element.style.setProperty('pointer-events', 'none', 'important');
+        item.element.classList.add('fps-element-hidden-temporarily');
       }
     }
 
     // Floating action buttons (e.g. scroll-to-bottom): strictly hidden throughout capture
     for (const item of cachedFloatingWidgets) {
-      item.element.style.setProperty('visibility', 'hidden', 'important');
+      hideElementFully(item.element);
     }
 
     // General fallback for any other fixed elements
@@ -406,14 +638,168 @@
       const isAlreadyHandled =
         cachedFixedHeaders.some((h) => h.element === item.element) ||
         cachedFixedFooters.some((f) => f.element === item.element) ||
-        cachedFloatingWidgets.some((w) => w.element === item.element);
+        cachedFloatingWidgets.some((w) => w.element === item.element) ||
+        cachedFixedSidebars.some((s) => s.element === item.element);
 
       if (isAlreadyHandled) continue;
 
       if (isFirstSlice) {
-        item.element.style.visibility = item.originalVisibility;
+        restoreElementFully(item);
       } else {
-        item.element.style.setProperty('visibility', 'hidden', 'important');
+        hideElementFully(item.element);
+      }
+    }
+
+    // Blur overlays remain strictly hidden across all slices
+    for (const item of cachedBlurOverlays) {
+      hideElementFully(item.element);
+      item.element.style.setProperty('backdrop-filter', 'none', 'important');
+      item.element.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+    }
+
+    // Dynamically discovered fixed elements (e.g. Ko-fi dynamic tab menu, dynamic ribbons)
+    for (const item of dynamicallyHiddenElements) {
+      if (item.isBlurOverlay) {
+        hideElementFully(item.element);
+        item.element.style.setProperty('backdrop-filter', 'none', 'important');
+        item.element.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+      } else if (item.isHeader) {
+        if (isFirstSlice) {
+          restoreElementFully(item);
+        } else {
+          hideElementFully(item.element);
+        }
+      } else if (item.isFooter) {
+        if (isLastSlice) {
+          restoreElementFully(item);
+        } else {
+          if (item.preserveLayout) {
+            item.element.style.setProperty('visibility', 'hidden', 'important');
+            item.element.style.setProperty('opacity', '0', 'important');
+            item.element.style.setProperty('pointer-events', 'none', 'important');
+            item.element.classList.add('fps-element-hidden-temporarily');
+          } else {
+            hideElementFully(item.element);
+          }
+        }
+      } else {
+        hideElementFully(item.element);
+      }
+    }
+  }
+
+  /**
+   * Scan for and suppress elements that dynamically become fixed or sticky after scrolling
+   * (e.g., Ko-fi #tabsMenu dynamically acquiring .fixed-tab-menu, dynamic sticky ribbons)
+   */
+  function suppressDynamicFixedElements(isFirstSlice, isLastSlice) {
+    const winW = window.innerWidth || document.documentElement.clientWidth;
+    const winH = window.innerHeight || document.documentElement.clientHeight;
+
+    const allElements = document.querySelectorAll('*');
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i];
+      if (el.id && el.id.startsWith('fps-')) continue;
+
+      const isTracked =
+        cachedFixedHeaders.some((h) => h.element === el) ||
+        cachedFixedFooters.some((f) => f.element === el) ||
+        cachedFloatingWidgets.some((w) => w.element === el) ||
+        cachedBlurOverlays.some((b) => b.element === el) ||
+        cachedFixedSidebars.some((s) => s.element === el) ||
+        hiddenFixedElements.some((h) => h.element === el) ||
+        dynamicallyHiddenElements.some((d) => d.element === el);
+
+      if (isTracked) continue;
+
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+
+      const backdropFilter = style.backdropFilter || style.webkitBackdropFilter || '';
+      const filter = style.filter || '';
+      const className = (typeof el.className === 'string' ? el.className : '').toLowerCase();
+      const id = (typeof el.id === 'string' ? el.id : '').toLowerCase();
+      const tag = el.tagName.toLowerCase();
+
+      const hasBackdropBlur = backdropFilter.includes('blur');
+      const isScrimOrGradient =
+        className.includes('blur-bg') ||
+        className.includes('autosuggest-scrim') ||
+        className.includes('chat-scrim') ||
+        className.includes('bottom-gradient') ||
+        className.includes('top-gradient') ||
+        className.includes('gradient-container') ||
+        (className.includes('scrim') && (position === 'absolute' || position === 'fixed' || position === 'sticky')) ||
+        id.includes('scrim') ||
+        id.includes('gradient');
+
+      if (hasBackdropBlur || isScrimOrGradient) {
+        dynamicallyHiddenElements.push({
+          element: el,
+          originalDisplay: el.style.display,
+          originalVisibility: el.style.visibility,
+          originalOpacity: el.style.opacity,
+          originalPointerEvents: el.style.pointerEvents,
+          originalBackdropFilter: el.style.backdropFilter,
+          originalWebkitBackdropFilter: el.style.webkitBackdropFilter,
+          originalFilter: el.style.filter,
+          isBlurOverlay: true
+        });
+        hideElementFully(el);
+        el.style.setProperty('backdrop-filter', 'none', 'important');
+        el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+        el.style.setProperty('filter', 'none', 'important');
+        continue;
+      }
+
+      const position = style.position;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+
+      const isPromptBar =
+        tag.includes('input') || tag.includes('composer') || tag.includes('textarea') ||
+        tag.includes('rich-textarea') || tag.includes('disclaimer') ||
+        className.includes('input') || className.includes('composer') ||
+        className.includes('prompt') || className.includes('chat-bar') ||
+        className.includes('bottom-container') || className.includes('disclaimer') ||
+        className.includes('gradient') ||
+        id.includes('input') || id.includes('prompt') || id.includes('composer');
+
+      const isHeader = !isFirstSlice && (position === 'fixed' || (position === 'absolute' && el.parentElement === document.body)) && rect.top <= 75 && rect.height < winH * 0.45;
+      const isFooter = !isLastSlice && (position === 'fixed' || isPromptBar) && rect.bottom >= winH - 75 && rect.top > winH * 0.35 && rect.height < winH * 0.45;
+      const isScroller = (activeScroller && activeScroller.element === el);
+
+      if (!isScroller && (isHeader || isFooter)) {
+        const preserveLayout = (position !== 'fixed' && position !== 'absolute');
+        dynamicallyHiddenElements.push({
+          element: el,
+          originalDisplay: el.style.display,
+          originalVisibility: el.style.visibility,
+          originalOpacity: el.style.opacity,
+          originalPointerEvents: el.style.pointerEvents,
+          isHeader: isHeader,
+          isFooter: isFooter,
+          preserveLayout: preserveLayout
+        });
+        if (preserveLayout) {
+          el.style.setProperty('visibility', 'hidden', 'important');
+          el.style.setProperty('opacity', '0', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+          el.classList.add('fps-element-hidden-temporarily');
+        } else {
+          hideElementFully(el);
+        }
+      }
+    }
+
+    // On last slice, restore any dynamically hidden footers
+    if (isLastSlice) {
+      for (let i = dynamicallyHiddenElements.length - 1; i >= 0; i--) {
+        const item = dynamicallyHiddenElements[i];
+        if (item.isFooter) {
+          restoreElementFully(item);
+          dynamicallyHiddenElements.splice(i, 1);
+        }
       }
     }
   }
@@ -479,10 +865,16 @@
                 rect.right <= containerRect.left || rect.left >= containerRect.right) {
               continue;
             }
+            const isPrimaryContainer =
+              (containerRect.width >= winW * 0.55 || containerRect.width + containerRect.left >= winW - 30) &&
+              containerRect.height >= winH * 0.55;
+
             links.push({
               url: fullUrl,
-              x: Math.round(rect.left - containerRect.left),
-              y: Math.round((rect.top - containerRect.top) + currentScrollY),
+              x: isPrimaryContainer ? Math.round(rect.left) : Math.round(rect.left - containerRect.left),
+              y: isPrimaryContainer
+                ? Math.round(rect.top + currentScrollY)
+                : Math.round((rect.top - containerRect.top) + currentScrollY),
               width: Math.round(rect.width),
               height: Math.round(rect.height)
             });
@@ -504,15 +896,98 @@
   }
 
   /**
+   * Proactively eagerize and trigger lazy images across the page before capture
+   */
+  function triggerAndPreloadLazyImages() {
+    try {
+      const imgs = document.querySelectorAll('img');
+      for (let i = 0; i < imgs.length; i++) {
+        const img = imgs[i];
+        if (img.loading === 'lazy') {
+          img.loading = 'eager';
+        }
+        const dataSrc =
+          img.getAttribute('data-src') ||
+          img.getAttribute('data-original') ||
+          img.getAttribute('data-lazy') ||
+          img.getAttribute('data-url');
+        if (dataSrc && (!img.src || img.src.includes('data:image') || img.src.includes('placeholder') || img.src.includes('blank'))) {
+          img.src = dataSrc;
+        }
+        const dataSrcset = img.getAttribute('data-srcset');
+        if (dataSrcset && !img.srcset) {
+          img.srcset = dataSrcset;
+        }
+      }
+
+      const bgEls = document.querySelectorAll('[data-bg], [data-background], [data-background-image]');
+      for (let i = 0; i < bgEls.length; i++) {
+        const el = bgEls[i];
+        const bg =
+          el.getAttribute('data-bg') ||
+          el.getAttribute('data-background') ||
+          el.getAttribute('data-background-image');
+        if (bg && (!el.style.backgroundImage || el.style.backgroundImage === 'none')) {
+          el.style.backgroundImage = `url("${bg}")`;
+        }
+      }
+
+      // Wake up JavaScript IntersectionObservers by dispatching scroll and resize events
+      window.dispatchEvent(new Event('scroll'));
+      window.dispatchEvent(new Event('resize'));
+    } catch (e) {
+      console.warn('Error eagerizing lazy assets:', e);
+    }
+  }
+
+  /**
+   * Ensure images in the visible slice are decoded before taking screenshot
+   */
+  async function awaitSliceImagesLoaded() {
+    try {
+      const winW = window.innerWidth || document.documentElement.clientWidth;
+      const winH = window.innerHeight || document.documentElement.clientHeight;
+      const imgs = Array.from(document.querySelectorAll('img'));
+      const visibleImgs = imgs.filter((img) => {
+        const r = img.getBoundingClientRect();
+        return r.bottom > -40 && r.top < winH + 40 && r.right > -40 && r.left < winW + 40;
+      });
+
+      const decodePromises = visibleImgs.map((img) => {
+        if (img.loading === 'lazy') img.loading = 'eager';
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        if (typeof img.decode === 'function') {
+          return Promise.race([
+            img.decode().catch(() => {}),
+            new Promise((r) => setTimeout(r, 250))
+          ]);
+        }
+        return new Promise((r) => {
+          const timer = setTimeout(r, 250);
+          img.addEventListener('load', () => { clearTimeout(timer); r(); }, { once: true });
+          img.addEventListener('error', () => { clearTimeout(timer); r(); }, { once: true });
+        });
+      });
+
+      await Promise.all(decodePromises);
+    } catch (e) {
+      console.warn('Error awaiting slice images:', e);
+    }
+  }
+
+  /**
    * Prepare webpage before capture sequence
    */
   function preparePage(hideFixedElements) {
     const metrics = getMetrics();
 
+    // Proactively eagerize all lazy images and background assets across the page
+    triggerAndPreloadLazyImages();
+
     // Disable smooth scrolling to enforce immediate synchronous scroll jumps
-    document.documentElement.classList.add('fps-hide-scrollbar');
+    document.documentElement.classList.add('fps-hide-scrollbar', 'fps-capturing');
     if (document.body) {
-      document.body.classList.add('fps-hide-scrollbar');
+      document.body.classList.add('fps-hide-scrollbar', 'fps-capturing');
     }
 
     if (activeScroller.isWindow) {
@@ -544,12 +1019,23 @@
    * Restore document scroll position, styles, and visibility
    */
   function restorePage() {
-    document.documentElement.classList.remove('fps-hide-scrollbar');
+    document.documentElement.classList.remove('fps-hide-scrollbar', 'fps-capturing');
     if (document.body) {
-      document.body.classList.remove('fps-hide-scrollbar');
+      document.body.classList.remove('fps-hide-scrollbar', 'fps-capturing');
       document.body.style.scrollBehavior = '';
     }
     document.documentElement.style.scrollBehavior = '';
+
+    // Restore blur overlays
+    for (const item of cachedBlurOverlays) {
+      restoreElementFully(item);
+      if (item.element && item.element.style) {
+        item.element.style.backdropFilter = item.originalBackdropFilter;
+        item.element.style.webkitBackdropFilter = item.originalWebkitBackdropFilter;
+        item.element.style.filter = item.originalFilter;
+      }
+    }
+    cachedBlurOverlays = [];
 
     // Restore un-hitched sticky elements
     for (const item of unhitchedStickyElements) {
@@ -559,26 +1045,38 @@
 
     // Restore fixed headers
     for (const item of cachedFixedHeaders) {
-      item.element.style.visibility = item.originalVisibility;
+      restoreElementFully(item);
     }
     cachedFixedHeaders = [];
 
+    // Restore fixed sidebars
+    for (const item of cachedFixedSidebars) {
+      restoreElementFully(item);
+    }
+    cachedFixedSidebars = [];
+
     // Restore fixed footers
     for (const item of cachedFixedFooters) {
-      item.element.style.visibility = item.originalVisibility;
+      restoreElementFully(item);
     }
     cachedFixedFooters = [];
 
     // Restore floating widgets
     for (const item of cachedFloatingWidgets) {
-      item.element.style.visibility = item.originalVisibility;
+      restoreElementFully(item);
     }
     cachedFloatingWidgets = [];
 
     for (const item of hiddenFixedElements) {
-      item.element.style.visibility = item.originalVisibility;
+      restoreElementFully(item);
     }
     hiddenFixedElements = [];
+
+    // Restore dynamically hidden elements
+    for (const item of dynamicallyHiddenElements) {
+      restoreElementFully(item);
+    }
+    dynamicallyHiddenElements = [];
 
     if (activeScroller) {
       if (activeScroller.isWindow) {
@@ -614,12 +1112,16 @@
       } else {
         const el = activeScroller.element;
         el.scrollTop = y;
-        // Trigger synthetic scroll event for reactive SPAs (DeepSeek, Twitch, ChatGPT)
+        // Trigger synthetic scroll event for reactive SPAs (DeepSeek, Gemini, Twitch, ChatGPT)
         el.dispatchEvent(new Event('scroll', { bubbles: true }));
+        window.dispatchEvent(new Event('scroll'));
       }
 
       // Wait for rendering and dynamic SPA DOM reflow (default 150ms)
-      setTimeout(() => {
+      setTimeout(async () => {
+        // Await visible images to load and decode before capturing slice
+        await awaitSliceImagesLoaded();
+
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             let actualY = y;
@@ -627,6 +1129,10 @@
               actualY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
             } else {
               actualY = activeScroller.element.scrollTop || y;
+            }
+
+            if (hideFixed) {
+              suppressDynamicFixedElements(isFirstSlice, isLastSlice);
             }
 
             const links = extractSliceLinks(activeScroller, actualY);

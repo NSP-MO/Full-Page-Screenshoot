@@ -3,6 +3,7 @@
 /* Hide scrollbars without locking overflow scrolling */
 html.fps-hide-scrollbar::-webkit-scrollbar,
 body.fps-hide-scrollbar::-webkit-scrollbar,
+.fps-hide-scrollbar::-webkit-scrollbar,
 .fps-hide-scrollbar *::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
@@ -10,7 +11,8 @@ body.fps-hide-scrollbar::-webkit-scrollbar,
 }
 
 html.fps-hide-scrollbar,
-body.fps-hide-scrollbar {
+body.fps-hide-scrollbar,
+.fps-hide-scrollbar {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
@@ -23,7 +25,58 @@ body.fps-hide-scrollbar * {
   scroll-behavior: auto !important;
 }
 
-.fps-element-hidden-temporarily {
+.fps-element-hidden-temporarily,
+.fps-element-hidden-temporarily * {
+  display: none !important;
   visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
+
+/* Suppress interactive viewport scrims, gradients, and blur overlays during full page capture */
+html.fps-capturing .blur-bg,
+html.fps-capturing [class*="blur-bg"],
+html.fps-capturing .autosuggest-scrim,
+html.fps-capturing [class*="scrim"],
+html.fps-capturing .bottom-gradient,
+html.fps-capturing .bottom-gradient-container,
+html.fps-capturing .top-gradient,
+html.fps-capturing .top-gradient-container,
+html.fps-capturing [class*="gradient-container"],
+html.fps-capturing .input-gradient,
+html.fps-capturing [class*="input-gradient"],
+html.fps-capturing input-container.input-gradient::before,
+html.fps-capturing .input-gradient::before,
+html.fps-capturing .input-gradient::after,
+html.fps-capturing [class*="input-gradient"]::before,
+html.fps-capturing [class*="input-gradient"]::after,
+html.fps-capturing input-container [class*="gradient"],
+body.fps-capturing .blur-bg,
+body.fps-capturing [class*="blur-bg"],
+body.fps-capturing .autosuggest-scrim,
+body.fps-capturing [class*="scrim"],
+body.fps-capturing .bottom-gradient,
+body.fps-capturing .bottom-gradient-container,
+body.fps-capturing .top-gradient,
+body.fps-capturing .top-gradient-container,
+body.fps-capturing [class*="gradient-container"],
+body.fps-capturing .input-gradient,
+body.fps-capturing [class*="input-gradient"],
+body.fps-capturing input-container.input-gradient::before,
+body.fps-capturing .input-gradient::before,
+body.fps-capturing .input-gradient::after,
+body.fps-capturing [class*="input-gradient"]::before,
+body.fps-capturing [class*="input-gradient"]::after,
+body.fps-capturing input-container [class*="gradient"] {
+  display: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  background: transparent !important;
+  background-image: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 

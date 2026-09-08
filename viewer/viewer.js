@@ -144,11 +144,74 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const firstImg = loadedImages[0].img;
     const capturedWinW = (metrics && metrics.windowWidth) || (metrics && metrics.clientWidth) || firstImg.naturalWidth;
+    const capturedWinH = (metrics && metrics.windowHeight) || (metrics && metrics.clientHeight) || firstImg.naturalHeight;
     const dpr = (metrics && metrics.devicePixelRatio) || (firstImg.naturalWidth / capturedWinW) || 1;
     const pageBgColor = (metrics && metrics.backgroundColor) || '#1f1f1f';
 
-    if (isContainer && cropRect) {
-      // Container mode (DeepSeek, Twitch, ChatGPT, Google Docs, Notion)
+    const isPrimarySpaLayout = isContainer && cropRect && (
+      (cropRect.width >= capturedWinW * 0.55 || cropRect.width + cropRect.x >= capturedWinW - 30) &&
+      cropRect.height >= capturedWinH * 0.55
+    );
+
+    if (isPrimarySpaLayout) {
+      // Full Application Frame stitching (Gemini, DeepSeek, ChatGPT, Claude, Twitch)
+      const rawSx = Math.max(0, Math.round(cropRect.x * dpr));
+      const detectedSidebarW = Math.round(((metrics && metrics.leftSidebarWidth) || 0) * dpr);
+      const sx = detectedSidebarW > 0 ? detectedSidebarW : rawSx;
+      const sy = Math.max(0, Math.round(cropRect.y * dpr));
+      const sw = Math.min(firstImg.naturalWidth - sx, Math.round(cropRect.width * dpr));
+      const sh = Math.min(firstImg.naturalHeight - sy, Math.round(cropRect.height * dpr));
+
+      const maxContainerReach = Math.max(
+        ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + sh)
+      );
+      const bottomMargin = Math.max(0, firstImg.naturalHeight - (sy + sh));
+
+      canvas.width = Math.round(firstImg.naturalWidth);
+      canvas.height = sy + maxContainerReach + bottomMargin;
+
+      ctx.fillStyle = pageBgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (loadingStatusText) {
+        loadingStatusText.textContent = 'Stitching full application interface...';
+      }
+
+      // 1. Draw Slice 0 at (0, 0) - renders full window width, top header, and sidebar head
+      ctx.drawImage(firstImg, 0, 0);
+
+      // 2. If left sidebar exists (sx > 0), extend its background cleanly down to canvas bottom
+      if (sx > 0 && canvas.height > firstImg.naturalHeight) {
+        const sampleStripH = Math.min(40, Math.max(10, Math.round(firstImg.naturalHeight * 0.05)));
+        const sampleSrcY = firstImg.naturalHeight - sampleStripH - bottomMargin;
+        const targetExtendH = canvas.height - firstImg.naturalHeight;
+        ctx.drawImage(
+          firstImg,
+          0, Math.max(sy, sampleSrcY), sx, sampleStripH,
+          0, firstImg.naturalHeight - bottomMargin, sx, targetExtendH + bottomMargin
+        );
+      }
+
+      // 3. Draw container content for each slice at its true vertical position
+      for (const item of loadedImages) {
+        const { img, slice } = item;
+        const destinationY = sy + Math.round(slice.actualY * dpr);
+        ctx.drawImage(img, sx, sy, sw, sh, sx, destinationY, sw, sh);
+      }
+
+      // 4. If bottom margin exists (e.g. docked composer outside scroller), draw from last slice
+      if (bottomMargin > 0) {
+        const lastImg = loadedImages[loadedImages.length - 1].img;
+        const bottomSrcY = firstImg.naturalHeight - bottomMargin;
+        const bottomDestY = canvas.height - bottomMargin;
+        ctx.drawImage(
+          lastImg,
+          0, bottomSrcY, firstImg.naturalWidth, bottomMargin,
+          0, bottomDestY, firstImg.naturalWidth, bottomMargin
+        );
+      }
+    } else if (isContainer && cropRect) {
+      // Localized container mode (small embedded scrollers)
       const sx = Math.max(0, Math.round(cropRect.x * dpr));
       const sy = Math.max(0, Math.round(cropRect.y * dpr));
       const sw = Math.min(firstImg.naturalWidth - sx, Math.round(cropRect.width * dpr));
@@ -174,7 +237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ctx.drawImage(img, sx, sy, sw, sh, 0, destinationY, sw, sh);
       }
     } else {
-      // Standard full page mode (GitHub, Wikipedia, MDN, etc.)
+      // Standard full page mode (GitHub, Wikipedia, MDN, Instagram, Twitter/X, etc.)
       const totalCanvasWidth = Math.round(firstImg.naturalWidth);
       const maxReach = Math.max(
         ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + firstImg.naturalHeight)
@@ -190,10 +253,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadingStatusText.textContent = 'Stitching slices into master canvas...';
       }
 
-      for (const item of loadedImages) {
-        const { img, slice } = item;
+      const leftSidebarW = Math.round(((metrics && metrics.leftSidebarWidth) || 0) * dpr);
+      const bottomBarH = Math.round(((metrics && metrics.bottomBarHeight) || 0) * dpr);
+
+      // 1. Draw Slice 0 in full at (0, 0)
+      ctx.drawImage(firstImg, 0, 0);
+
+      // 2. If a persistent left sidebar exists and canvas height exceeds viewport:
+      // Extend the sidebar background and vertical divider line down to the bottom of the canvas
+      if (leftSidebarW > 0 && canvas.height > firstImg.naturalHeight) {
+        const sampleStripH = Math.min(40, Math.max(10, Math.round(firstImg.naturalHeight * 0.05)));
+        const sampleSrcY = firstImg.naturalHeight - sampleStripH - bottomBarH;
+        const targetExtendH = canvas.height - firstImg.naturalHeight;
+        ctx.drawImage(
+          firstImg,
+          0, Math.max(0, sampleSrcY), leftSidebarW, sampleStripH,
+          0, firstImg.naturalHeight - bottomBarH, leftSidebarW, targetExtendH + bottomBarH
+        );
+      }
+
+      // 3. Draw remaining slices
+      for (let i = 0; i < loadedImages.length; i++) {
+        const { img, slice } = loadedImages[i];
         const destinationY = Math.round(slice.actualY * dpr);
-        ctx.drawImage(img, 0, destinationY);
+
+        if (leftSidebarW > 0) {
+          if (i === 0) {
+            // Slice 0 was already drawn in full above
+            continue;
+          }
+          // For slices 1..N, draw ONLY the content area to the right of the sidebar
+          // so the extended sidebar background and vertical divider line are preserved!
+          const contentW = firstImg.naturalWidth - leftSidebarW;
+          ctx.drawImage(
+            img,
+            leftSidebarW, 0, contentW, firstImg.naturalHeight,
+            leftSidebarW, destinationY, contentW, firstImg.naturalHeight
+          );
+        } else {
+          ctx.drawImage(img, 0, destinationY);
+        }
+      }
+
+      // 4. If bottom bar exists (docked composer / disclaimer / cookie bar), draw from last slice
+      if (bottomBarH > 0 && loadedImages.length > 1) {
+        const lastImg = loadedImages[loadedImages.length - 1].img;
+        const bottomSrcY = firstImg.naturalHeight - bottomBarH;
+        const bottomDestY = canvas.height - bottomBarH;
+        ctx.drawImage(
+          lastImg,
+          0, bottomSrcY, firstImg.naturalWidth, bottomBarH,
+          0, bottomDestY, firstImg.naturalWidth, bottomBarH
+        );
       }
     }
 

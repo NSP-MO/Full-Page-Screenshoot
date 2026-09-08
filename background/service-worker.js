@@ -196,6 +196,9 @@ async function captureFullPage(tab, options = {}) {
     const metrics = prepResponse.metrics;
     const totalHeight = metrics.scrollHeight;
     const viewportHeight = Math.max(metrics.clientHeight, 100);
+    const scrollStep = (metrics && typeof metrics.stepHeight === 'number' && metrics.stepHeight >= 150)
+      ? metrics.stepHeight
+      : viewportHeight;
     const maxScrollY = Math.max(0, totalHeight - viewportHeight);
 
     // Calculate vertical scroll step positions with precise bottom clamping
@@ -203,7 +206,7 @@ async function captureFullPage(tab, options = {}) {
     let currentY = 0;
     while (currentY < maxScrollY) {
       yPositions.push(currentY);
-      currentY += viewportHeight;
+      currentY += scrollStep;
     }
     if (yPositions.length === 0 || yPositions[yPositions.length - 1] < maxScrollY) {
       yPositions.push(maxScrollY);
