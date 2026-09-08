@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (loadingStatusText) {
-      loadingStatusText.textContent = `Loading ${slices.length} image slices...`;
+      loadingStatusText.textContent = 'Processing captured images...';
     }
 
     // Load all slice images in parallel
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (loadingStatusText) {
-        loadingStatusText.textContent = 'Stitching full application interface...';
+        loadingStatusText.textContent = 'Assembling full page screenshot...';
       }
 
       // 1. Draw Slice 0 at (0, 0) - renders full window width, top header/toolbar, and sidebar head
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (loadingStatusText) {
-          loadingStatusText.textContent = 'Stitching slices into continuous screenshot...';
+          loadingStatusText.textContent = 'Assembling full page screenshot...';
         }
 
         // Draw slice 0 with header
@@ -339,7 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (loadingStatusText) {
-          loadingStatusText.textContent = 'Stitching slices into continuous screenshot...';
+          loadingStatusText.textContent = 'Assembling full page screenshot...';
         }
 
         for (const item of loadedImages) {
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (loadingStatusText) {
-        loadingStatusText.textContent = 'Stitching slices into master canvas...';
+        loadingStatusText.textContent = 'Assembling full page screenshot...';
       }
 
       if (isWideHorizontal) {
@@ -518,13 +518,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function showToast(message) {
+  let toastTimer = null;
+  function showToast(message, duration = 1200) {
     if (!toast) return;
+    if (toastTimer) clearTimeout(toastTimer);
     toast.textContent = message;
     toast.classList.remove('hidden');
-    setTimeout(() => {
+    toastTimer = setTimeout(() => {
       toast.classList.add('hidden');
-    }, 3000);
+      toastTimer = null;
+    }, duration);
   }
 
   // Viewport layout synchronization helper
