@@ -268,6 +268,7 @@ async function captureFullPage(tab, options = {}) {
       createdAt: now,
       slices: slices,
       metrics: metrics,
+      links: (metrics && metrics.links) || [],
       title: tab.title || 'Screenshoot',
       url: tab.url || '',
       format: imageFormat,

@@ -310,6 +310,113 @@
   }
 
   /**
+   * Extract clickable hyperlinks with accurate canvas-mapped coordinates
+   */
+  function extractPageLinks(scrollerInfo) {
+    try {
+      const root = (scrollerInfo && !scrollerInfo.isWindow) ? scrollerInfo.element : document;
+      const anchorElements = root.querySelectorAll('a[href]');
+      if (!anchorElements || anchorElements.length === 0) return [];
+
+      const windowScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
+      const windowScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+
+      let containerRect = null;
+      let containerScrollTop = 0;
+      let containerScrollLeft = 0;
+
+      if (scrollerInfo && !scrollerInfo.isWindow) {
+        containerRect = scrollerInfo.element.getBoundingClientRect();
+        containerScrollTop = scrollerInfo.element.scrollTop;
+        containerScrollLeft = scrollerInfo.element.scrollLeft;
+      }
+
+      function isFixed(el) {
+        if (hiddenFixedElements && hiddenFixedElements.length > 0) {
+          for (let j = 0; j < hiddenFixedElements.length; j++) {
+            if (hiddenFixedElements[j].element === el || hiddenFixedElements[j].element.contains(el)) {
+              return true;
+            }
+          }
+        }
+        let cur = el;
+        while (cur && cur !== document && cur !== document.documentElement) {
+          const pos = window.getComputedStyle(cur).position;
+          if (pos === 'fixed') return true;
+          cur = cur.parentElement;
+        }
+        return false;
+      }
+
+      const MAX_LINKS = 2500;
+      const links = [];
+
+      for (let i = 0; i < anchorElements.length; i++) {
+        if (links.length >= MAX_LINKS) break;
+        const el = anchorElements[i];
+
+        if (el.id && el.id.startsWith('fps-')) continue;
+
+        const rawHref = el.getAttribute('href');
+        if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('javascript:')) continue;
+
+        let fullUrl = '';
+        try {
+          fullUrl = el.href;
+        } catch (e) {
+          continue;
+        }
+        if (!fullUrl || !(fullUrl.startsWith('http://') || fullUrl.startsWith('https://') || fullUrl.startsWith('mailto:') || fullUrl.startsWith('tel:'))) {
+          continue;
+        }
+
+        if (el.checkVisibility && !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) {
+          continue;
+        }
+
+        const clientRects = el.getClientRects();
+        if (!clientRects || clientRects.length === 0) continue;
+
+        const elIsFixed = (scrollerInfo && scrollerInfo.isWindow) ? isFixed(el) : false;
+
+        for (let r = 0; r < clientRects.length; r++) {
+          if (links.length >= MAX_LINKS) break;
+          const rect = clientRects[r];
+          if (rect.width <= 1 || rect.height <= 1) continue;
+
+          let x = 0;
+          let y = 0;
+          const w = Math.round(rect.width);
+          const h = Math.round(rect.height);
+
+          if (scrollerInfo && !scrollerInfo.isWindow && containerRect) {
+            x = Math.round((rect.left - containerRect.left) + containerScrollLeft);
+            y = Math.round((rect.top - containerRect.top) + containerScrollTop);
+          } else {
+            x = Math.round(elIsFixed ? rect.left : (rect.left + windowScrollX));
+            y = Math.round(elIsFixed ? rect.top : (rect.top + windowScrollY));
+          }
+
+          if (w > 0 && h > 0) {
+            links.push({
+              url: fullUrl,
+              x: x,
+              y: y,
+              width: w,
+              height: h
+            });
+          }
+        }
+      }
+
+      return links;
+    } catch (err) {
+      console.warn('Failed to extract page links:', err);
+      return [];
+    }
+  }
+
+  /**
    * Prepare webpage before capture sequence
    */
   function preparePage(hideFixedElements) {
@@ -342,6 +449,7 @@
       }
     }
 
+    metrics.links = extractPageLinks(activeScroller);
     return metrics;
   }
 

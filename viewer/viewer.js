@@ -897,6 +897,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, mimeType, quality);
   }
 
+  // Escape PDF literal string (parentheses and backslashes)
+  function escapePdfString(str) {
+    if (!str) return '';
+    let safeStr = str;
+    try {
+      safeStr = encodeURI(decodeURI(str));
+    } catch (e) {
+      safeStr = str;
+    }
+    return safeStr.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  }
+
+  // Retrieve active links mapped to canvas coordinates, excluding redacted areas
+  function getActiveLinks() {
+    const rawLinks = (sessionData && ((sessionData.metrics && sessionData.metrics.links) || sessionData.links)) || [];
+    if (!rawLinks || rawLinks.length === 0) return [];
+
+    const metrics = sessionData.metrics;
+    const dpr = (metrics && metrics.devicePixelRatio) || 1;
+
+    let offsetX = 0;
+    let offsetY = 0;
+    if (sessionData.type === 'crop' && sessionData.cropRect) {
+      offsetX = sessionData.cropRect.x;
+      offsetY = sessionData.cropRect.y;
+    }
+
+    const result = [];
+    for (const link of rawLinks) {
+      const lx = (link.x - offsetX) * dpr;
+      const ly = (link.y - offsetY) * dpr;
+      const lw = link.width * dpr;
+      const lh = link.height * dpr;
+
+      // Filter out-of-bounds links
+      if (lx + lw <= 0 || ly + lh <= 0 || lx >= canvas.width || ly >= canvas.height) {
+        continue;
+      }
+
+      // Redaction safety: discard link if covered by blur or mosaic annotations
+      const isRedacted = annotations.some((anno) => {
+        if (anno.type !== 'blur' && anno.type !== 'mosaic') return false;
+        return (
+          lx < anno.x + anno.width &&
+          lx + lw > anno.x &&
+          ly < anno.y + anno.height &&
+          ly + lh > anno.y
+        );
+      });
+
+      if (isRedacted) continue;
+
+      result.push({
+        url: link.url,
+        x: Math.max(0, lx),
+        y: Math.max(0, ly),
+        width: Math.min(canvas.width - Math.max(0, lx), lw),
+        height: Math.min(canvas.height - Math.max(0, ly), lh)
+      });
+    }
+
+    return result;
+  }
+
   // Continuous Single-Page PDF (Standard PDF 1.4)
   function createContinuousPdfBlob(cvs, quality = 0.94) {
     return new Promise((resolve, reject) => {
@@ -915,52 +979,92 @@ document.addEventListener('DOMContentLoaded', async () => {
             const wPt = (wPx * 72) / 96;
             const hPt = (hPx * 72) / 96;
 
+            const activeLinks = getActiveLinks();
+            const annotRefs = [];
+            const annotObjects = [];
+
+            // Annotations start at object ID 6
+            for (let i = 0; i < activeLinks.length; i++) {
+              const link = activeLinks[i];
+              const annotObjNum = 6 + i;
+              annotRefs.push(`${annotObjNum} 0 R`);
+
+              let llx = ((link.x * 72) / 96);
+              let lly = (hPt - ((link.y + link.height) * 72) / 96);
+              let urx = (((link.x + link.width) * 72) / 96);
+              let ury = (hPt - (link.y * 72) / 96);
+
+              if (urx <= llx) urx = llx + 0.1;
+              if (ury <= lly) ury = lly + 0.1;
+
+              const escapedUri = escapePdfString(link.url);
+              const annotObjStr = `${annotObjNum} 0 obj\n<< /Type /Annot /Subtype /Link /Rect [${llx.toFixed(2)} ${lly.toFixed(2)} ${urx.toFixed(2)} ${ury.toFixed(2)}] /Border [0 0 0] /A << /S /URI /URI (${escapedUri}) >> >>\nendobj\n`;
+              annotObjects.push(annotObjStr);
+            }
+
+            const annotsEntry = annotRefs.length > 0 ? `/Annots [${annotRefs.join(' ')}] ` : '';
+
+            const encoder = new TextEncoder();
+            const parts = [];
+            function addChunk(strOrBytes) {
+              const b = typeof strOrBytes === 'string' ? encoder.encode(strOrBytes) : strOrBytes;
+              parts.push(b);
+            }
+
             const header = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+            addChunk(header);
+
+            const objByteOffsets = [];
+            let currentOffset = header.length;
+
             const obj1 = '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n';
+            objByteOffsets.push(currentOffset);
+            addChunk(obj1);
+            currentOffset += obj1.length;
+
             const obj2 = '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n';
-            const obj3 = `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wPt.toFixed(2)} ${hPt.toFixed(2)}] /Resources << /XObject << /Im1 4 0 R >> /ProcSet [/PDF /ImageC] >> /Contents 5 0 R >>\nendobj\n`;
-            
+            objByteOffsets.push(currentOffset);
+            addChunk(obj2);
+            currentOffset += obj2.length;
+
+            const obj3 = `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wPt.toFixed(2)} ${hPt.toFixed(2)}] ${annotsEntry}/Resources << /XObject << /Im1 4 0 R >> /ProcSet [/PDF /ImageC] >> /Contents 5 0 R >>\nendobj\n`;
+            objByteOffsets.push(currentOffset);
+            addChunk(obj3);
+            currentOffset += obj3.length;
+
             const imgHeader = `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`;
             const imgFooter = '\nendstream\nendobj\n';
+            objByteOffsets.push(currentOffset);
+            addChunk(imgHeader);
+            addChunk(jpegBytes);
+            addChunk(imgFooter);
+            currentOffset += imgHeader.length + jpegBytes.length + imgFooter.length;
 
             const contentStream = `q ${wPt.toFixed(2)} 0 0 ${hPt.toFixed(2)} 0 0 cm /Im1 Do Q`;
             const obj5 = `5 0 obj\n<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream\nendobj\n`;
+            objByteOffsets.push(currentOffset);
+            addChunk(obj5);
+            currentOffset += obj5.length;
 
-            const encoder = new TextEncoder();
-            const bHeader = encoder.encode(header);
-            const bObj1 = encoder.encode(obj1);
-            const bObj2 = encoder.encode(obj2);
-            const bObj3 = encoder.encode(obj3);
-            const bImgHeader = encoder.encode(imgHeader);
-            const bImgFooter = encoder.encode(imgFooter);
-            const bObj5 = encoder.encode(obj5);
+            for (let i = 0; i < annotObjects.length; i++) {
+              const annotStr = annotObjects[i];
+              objByteOffsets.push(currentOffset);
+              addChunk(annotStr);
+              currentOffset += annotStr.length;
+            }
 
-            const offset1 = bHeader.length;
-            const offset2 = offset1 + bObj1.length;
-            const offset3 = offset2 + bObj2.length;
-            const offset4 = offset3 + bObj3.length;
-            const offset5 = offset4 + bImgHeader.length + jpegBytes.length + bImgFooter.length;
-            const startXref = offset5 + bObj5.length;
-
+            const startXref = currentOffset;
+            const totalObjs = 6 + annotObjects.length;
             const pad = (n) => String(n).padStart(10, '0');
-            const xref = `xref\n0 6\n0000000000 65535 f \n${pad(offset1)} 00000 n \n${pad(offset2)} 00000 n \n${pad(offset3)} 00000 n \n${pad(offset4)} 00000 n \n${pad(offset5)} 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${startXref}\n%%EOF\n`;
-            const bXref = encoder.encode(xref);
 
-            const totalLength = startXref + bXref.length;
-            const pdfArray = new Uint8Array(totalLength);
+            let xrefStr = `xref\n0 ${totalObjs}\n0000000000 65535 f \n`;
+            for (let i = 0; i < objByteOffsets.length; i++) {
+              xrefStr += `${pad(objByteOffsets[i])} 00000 n \n`;
+            }
+            xrefStr += `trailer\n<< /Size ${totalObjs} /Root 1 0 R >>\nstartxref\n${startXref}\n%%EOF\n`;
+            addChunk(xrefStr);
 
-            let pos = 0;
-            pdfArray.set(bHeader, pos); pos += bHeader.length;
-            pdfArray.set(bObj1, pos); pos += bObj1.length;
-            pdfArray.set(bObj2, pos); pos += bObj2.length;
-            pdfArray.set(bObj3, pos); pos += bObj3.length;
-            pdfArray.set(bImgHeader, pos); pos += bImgHeader.length;
-            pdfArray.set(jpegBytes, pos); pos += jpegBytes.length;
-            pdfArray.set(bImgFooter, pos); pos += bImgFooter.length;
-            pdfArray.set(bObj5, pos); pos += bObj5.length;
-            pdfArray.set(bXref, pos);
-
-            const pdfBlob = new Blob([pdfArray], { type: 'application/pdf' });
+            const pdfBlob = new Blob(parts, { type: 'application/pdf' });
             resolve(pdfBlob);
           } catch (e) {
             reject(e);
@@ -985,6 +1089,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const totalPages = Math.max(1, Math.ceil(flatCvs.height / sliceHeightPx));
     const pageImageBlobs = [];
+    const pageBgColor = (sessionData && sessionData.metrics && sessionData.metrics.backgroundColor) || '#1f1f1f';
 
     for (let p = 0; p < totalPages; p++) {
       const sliceTop = p * sliceHeightPx;
@@ -994,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       sliceCanvas.width = flatCvs.width;
       sliceCanvas.height = currentSliceH;
       const sCtx = sliceCanvas.getContext('2d', { willReadFrequently: true });
-      sCtx.fillStyle = '#ffffff';
+      sCtx.fillStyle = pageBgColor;
       sCtx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
       sCtx.drawImage(flatCvs, 0, sliceTop, flatCvs.width, currentSliceH, 0, 0, flatCvs.width, currentSliceH);
 
@@ -1004,13 +1109,74 @@ document.addEventListener('DOMContentLoaded', async () => {
         bytes: new Uint8Array(arrayBuffer),
         widthPx: sliceCanvas.width,
         heightPx: sliceCanvas.height,
-        heightPt: currentSliceH * scale
+        heightPt: currentSliceH * scale,
+        sliceTop: sliceTop,
+        currentSliceH: currentSliceH
+      });
+    }
+
+    // Partition active links per page
+    const activeLinks = getActiveLinks();
+    const pageLinks = Array.from({ length: totalPages }, () => []);
+
+    for (const link of activeLinks) {
+      const linkTop = link.y;
+      const linkBottom = link.y + link.height;
+
+      for (let p = 0; p < totalPages; p++) {
+        const sliceTop = p * sliceHeightPx;
+        const currentSliceH = pageImageBlobs[p].currentSliceH;
+
+        if (linkBottom > sliceTop && linkTop < sliceTop + currentSliceH) {
+          const visibleTop = Math.max(linkTop, sliceTop);
+          const visibleBottom = Math.min(linkBottom, sliceTop + currentSliceH);
+          const topOffset = visibleTop - sliceTop;
+          const bottomOffset = visibleBottom - sliceTop;
+
+          let llx = marginPt + (link.x * scale);
+          let urx = marginPt + ((link.x + link.width) * scale);
+          let ury = (a4HeightPt - marginPt) - (topOffset * scale);
+          let lly = (a4HeightPt - marginPt) - (bottomOffset * scale);
+
+          if (urx <= llx) urx = llx + 0.1;
+          if (ury <= lly) ury = lly + 0.1;
+
+          pageLinks[p].push({
+            url: link.url,
+            rect: [llx.toFixed(2), lly.toFixed(2), urx.toFixed(2), ury.toFixed(2)]
+          });
+        }
+      }
+    }
+
+    // Allocate dynamic object numbers
+    let nextObjId = 1;
+    const catalogObjId = nextObjId++; // 1
+    const pagesObjId = nextObjId++;   // 2
+
+    const pageMeta = [];
+    for (let p = 0; p < totalPages; p++) {
+      const pageObjId = nextObjId++;
+      const imgObjId = nextObjId++;
+      const contentObjId = nextObjId++;
+      const annotObjIds = [];
+
+      for (let k = 0; k < pageLinks[p].length; k++) {
+        annotObjIds.push(nextObjId++);
+      }
+
+      pageMeta.push({
+        pageObjId,
+        imgObjId,
+        contentObjId,
+        annotObjIds,
+        links: pageLinks[p],
+        data: pageImageBlobs[p]
       });
     }
 
     const encoder = new TextEncoder();
     const parts = [];
-
     function addChunk(strOrBytes) {
       const bytes = typeof strOrBytes === 'string' ? encoder.encode(strOrBytes) : strOrBytes;
       parts.push(bytes);
@@ -1019,18 +1185,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const header = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
     addChunk(header);
 
-    const pageObjStartIndex = 3;
-    const kidsRefs = [];
-    for (let i = 0; i < totalPages; i++) {
-      kidsRefs.push(`${pageObjStartIndex + (i * 3)} 0 R`);
-    }
-
-    const obj1 = '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n';
-    const obj2 = `2 0 obj\n<< /Type /Pages /Kids [${kidsRefs.join(' ')}] /Count ${totalPages} >>\nendobj\n`;
-
     const objByteOffsets = [];
-
     let currentOffset = header.length;
+
+    const kidsRefs = pageMeta.map((m) => `${m.pageObjId} 0 R`).join(' ');
+    const obj1 = `${catalogObjId} 0 obj\n<< /Type /Catalog /Pages ${pagesObjId} 0 R >>\nendobj\n`;
+    const obj2 = `${pagesObjId} 0 obj\n<< /Type /Pages /Kids [${kidsRefs}] /Count ${totalPages} >>\nendobj\n`;
+
     objByteOffsets.push(currentOffset);
     addChunk(obj1);
     currentOffset += obj1.length;
@@ -1039,18 +1200,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     addChunk(obj2);
     currentOffset += obj2.length;
 
-    for (let i = 0; i < totalPages; i++) {
-      const pData = pageImageBlobs[i];
-      const pageObjNum = pageObjStartIndex + (i * 3);
-      const imgObjNum = pageObjNum + 1;
-      const contentObjNum = pageObjNum + 2;
+    for (let p = 0; p < totalPages; p++) {
+      const meta = pageMeta[p];
+      const pData = meta.data;
 
-      const pageObjStr = `${pageObjNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${a4WidthPt} ${a4HeightPt}] /Resources << /XObject << /Im${i + 1} ${imgObjNum} 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ${contentObjNum} 0 R >>\nendobj\n`;
+      const annotsEntry = meta.annotObjIds.length > 0
+        ? `/Annots [${meta.annotObjIds.map((id) => `${id} 0 R`).join(' ')}] `
+        : '';
+
+      const pageObjStr = `${meta.pageObjId} 0 obj\n<< /Type /Page /Parent ${pagesObjId} 0 R /MediaBox [0 0 ${a4WidthPt} ${a4HeightPt}] ${annotsEntry}/Resources << /XObject << /Im${p + 1} ${meta.imgObjId} 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ${meta.contentObjId} 0 R >>\nendobj\n`;
       objByteOffsets.push(currentOffset);
       addChunk(pageObjStr);
       currentOffset += pageObjStr.length;
 
-      const imgHeaderStr = `${imgObjNum} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pData.widthPx} /Height ${pData.heightPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pData.bytes.length} >>\nstream\n`;
+      const imgHeaderStr = `${meta.imgObjId} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pData.widthPx} /Height ${pData.heightPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pData.bytes.length} >>\nstream\n`;
       const imgFooterStr = '\nendstream\nendobj\n';
 
       objByteOffsets.push(currentOffset);
@@ -1060,23 +1223,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentOffset += imgHeaderStr.length + pData.bytes.length + imgFooterStr.length;
 
       const drawY = a4HeightPt - marginPt - pData.heightPt;
-      const contentStr = `q ${printableWidthPt.toFixed(2)} 0 0 ${pData.heightPt.toFixed(2)} ${marginPt} ${drawY.toFixed(2)} cm /Im${i + 1} Do Q`;
-      const contentObjStr = `${contentObjNum} 0 obj\n<< /Length ${contentStr.length} >>\nstream\n${contentStr}\nendstream\nendobj\n`;
+      const contentStr = `q ${printableWidthPt.toFixed(2)} 0 0 ${pData.heightPt.toFixed(2)} ${marginPt} ${drawY.toFixed(2)} cm /Im${p + 1} Do Q`;
+      const contentObjStr = `${meta.contentObjId} 0 obj\n<< /Length ${contentStr.length} >>\nstream\n${contentStr}\nendstream\nendobj\n`;
 
       objByteOffsets.push(currentOffset);
       addChunk(contentObjStr);
       currentOffset += contentObjStr.length;
+
+      // Link annotation objects for this page
+      for (let k = 0; k < meta.links.length; k++) {
+        const link = meta.links[k];
+        const annotId = meta.annotObjIds[k];
+        const escapedUri = escapePdfString(link.url);
+        const annotStr = `${annotId} 0 obj\n<< /Type /Annot /Subtype /Link /Rect [${link.rect.join(' ')}] /Border [0 0 0] /A << /S /URI /URI (${escapedUri}) >> >>\nendobj\n`;
+
+        objByteOffsets.push(currentOffset);
+        addChunk(annotStr);
+        currentOffset += annotStr.length;
+      }
     }
 
     const startXref = currentOffset;
-    const totalObjs = 3 + (totalPages * 3);
+    const totalObjs = nextObjId;
     const pad = (n) => String(n).padStart(10, '0');
 
     let xrefStr = `xref\n0 ${totalObjs}\n0000000000 65535 f \n`;
     for (let i = 0; i < objByteOffsets.length; i++) {
       xrefStr += `${pad(objByteOffsets[i])} 00000 n \n`;
     }
-    xrefStr += `trailer\n<< /Size ${totalObjs} /Root 1 0 R >>\nstartxref\n${startXref}\n%%EOF\n`;
+    xrefStr += `trailer\n<< /Size ${totalObjs} /Root ${catalogObjId} 0 R >>\nstartxref\n${startXref}\n%%EOF\n`;
     addChunk(xrefStr);
 
     return new Blob(parts, { type: 'application/pdf' });
