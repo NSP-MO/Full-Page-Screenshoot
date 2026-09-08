@@ -221,9 +221,36 @@ async function captureFullPage(tab, options = {}) {
       }
     }
 
+    const isWideHorizontal = !metrics.isContainer &&
+      (metrics.scrollWidth > metrics.clientWidth * 1.15) &&
+      (metrics.scrollWidth > 1100);
+    const scrollStepX = metrics.clientWidth;
+    const maxScrollX = isWideHorizontal ? Math.max(0, metrics.scrollWidth - metrics.clientWidth) : 0;
+    const xPositions = [];
+    let currentX = 0;
+    while (currentX < maxScrollX) {
+      xPositions.push(currentX);
+      currentX += scrollStepX;
+    }
+    if (xPositions.length === 0 || xPositions[xPositions.length - 1] < maxScrollX) {
+      xPositions.push(maxScrollX);
+    }
+
+    const capturePoints = [];
+    for (let iy = 0; iy < yPositions.length; iy++) {
+      for (let ix = 0; ix < xPositions.length; ix++) {
+        capturePoints.push({
+          x: xPositions[ix],
+          y: yPositions[iy],
+          isFirstSlice: (iy === 0 && ix === 0),
+          isLastSlice: (iy === yPositions.length - 1 && ix === xPositions.length - 1)
+        });
+      }
+    }
+
     const slices = [];
     const allLinks = [];
-    const totalSlices = yPositions.length;
+    const totalSlices = capturePoints.length;
 
     for (let i = 0; i < totalSlices; i++) {
       if (cancelCaptureRequested) {
@@ -231,9 +258,11 @@ async function captureFullPage(tab, options = {}) {
         break;
       }
 
-      const targetY = yPositions[i];
-      const isFirstSlice = (i === 0);
-      const isLastSlice = (i === totalSlices - 1);
+      const point = capturePoints[i];
+      const targetX = point.x;
+      const targetY = point.y;
+      const isFirstSlice = point.isFirstSlice;
+      const isLastSlice = point.isLastSlice;
       const percent = Math.round(((i + 1) / totalSlices) * 100);
 
       try {
@@ -243,6 +272,7 @@ async function captureFullPage(tab, options = {}) {
       // Scroll target scroller
       const scrollRes = await safeSendMessage(tabId, {
         action: 'scrollTo',
+        x: targetX,
         y: targetY,
         isFirstSlice: isFirstSlice,
         isLastSlice: isLastSlice,
@@ -253,6 +283,9 @@ async function captureFullPage(tab, options = {}) {
       const actualY = (scrollRes && scrollRes.scroll && typeof scrollRes.scroll.actualY === 'number')
         ? scrollRes.scroll.actualY
         : targetY;
+      const actualX = (scrollRes && scrollRes.scroll && typeof scrollRes.scroll.actualX === 'number')
+        ? scrollRes.scroll.actualX
+        : targetX;
 
       if (scrollRes && scrollRes.scroll && Array.isArray(scrollRes.scroll.links)) {
         allLinks.push(...scrollRes.scroll.links);
@@ -267,7 +300,9 @@ async function captureFullPage(tab, options = {}) {
 
       slices.push({
         index: i,
+        targetX: targetX,
         targetY: targetY,
+        actualX: actualX,
         actualY: actualY,
         dataUrl: dataUrl
       });

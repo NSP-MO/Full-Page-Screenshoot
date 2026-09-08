@@ -618,8 +618,9 @@
         continue;
       }
 
-      // 1. Un-hitch position: sticky elements so they flow naturally with their message/section
-      if (position === 'sticky') {
+      // 1. Un-hitch position: sticky elements and GSAP .pin-spacer / scroll-section elements so they flow naturally with their section
+      const isPinSpacer = className.includes('pin-spacer') || el.hasAttribute('data-scroll-section');
+      if (position === 'sticky' || isPinSpacer) {
         unhitchedStickyElements.push({
           element: el,
           originalPosition: el.style.position
@@ -985,7 +986,7 @@
   /**
    * Extract hyperlinks currently visible in the active slice viewport
    */
-  function extractSliceLinks(scrollerInfo, currentScrollY) {
+  function extractSliceLinks(scrollerInfo, currentScrollY, currentScrollX = 0) {
     try {
       const isWin = !scrollerInfo || scrollerInfo.isWindow;
       const root = isWin ? document : scrollerInfo.element;
@@ -1032,7 +1033,7 @@
             if (rect.bottom <= 0 || rect.top >= winH || rect.right <= 0 || rect.left >= winW) continue;
             links.push({
               url: fullUrl,
-              x: Math.round(rect.left),
+              x: Math.round(rect.left + (currentScrollX || 0)),
               y: Math.round(rect.top + currentScrollY),
               width: Math.round(rect.width),
               height: Math.round(rect.height)
@@ -1049,7 +1050,9 @@
 
             links.push({
               url: fullUrl,
-              x: isPrimaryContainer ? Math.round(rect.left) : Math.round(rect.left - containerRect.left),
+              x: isPrimaryContainer
+                ? Math.round(rect.left + (currentScrollX || 0))
+                : Math.round((rect.left - containerRect.left) + (currentScrollX || 0)),
               y: isPrimaryContainer
                 ? Math.round(rect.top + currentScrollY)
                 : Math.round((rect.top - containerRect.top) + currentScrollY),
@@ -1070,7 +1073,7 @@
    * Extract clickable hyperlinks with accurate canvas-mapped coordinates
    */
   function extractPageLinks(scrollerInfo) {
-    return extractSliceLinks(scrollerInfo, 0);
+    return extractSliceLinks(scrollerInfo, 0, 0);
   }
 
   /**
@@ -1147,9 +1150,31 @@
         });
       });
 
+      // Await visible canvas elements (PDF.js viewer, charts, mathematical notation)
+      const canvases = Array.from(document.querySelectorAll('canvas'));
+      const visibleCanvases = canvases.filter((cvs) => {
+        const r = cvs.getBoundingClientRect();
+        return r.bottom > 0 && r.top < winH && r.right > 0 && r.left < winW && r.width > 10 && r.height > 10;
+      });
+
+      const isPdfViewer = !!document.querySelector('.pdfViewer, [data-pdf-viewer], #viewer.pdfViewer');
+      if (visibleCanvases.length > 0 || isPdfViewer) {
+        decodePromises.push(new Promise((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (isPdfViewer) {
+                setTimeout(resolve, 100);
+              } else {
+                resolve();
+              }
+            });
+          });
+        }));
+      }
+
       await Promise.all(decodePromises);
     } catch (e) {
-      console.warn('Error awaiting slice images:', e);
+      console.warn('Error awaiting slice images and canvases:', e);
     }
   }
 
@@ -1297,7 +1322,7 @@
   /**
    * Scroll target scroller to vertical position and await DOM reflow + GPU repaint
    */
-  function scrollToPosition(y, isFirstSlice, isLastSlice, hideFixed, delayMs) {
+  function scrollToPosition(y, isFirstSlice, isLastSlice, hideFixed, delayMs, x) {
     return new Promise((resolve) => {
       if (!activeScroller) {
         getMetrics();
@@ -1307,15 +1332,20 @@
         setFixedElementsVisibility(isFirstSlice, isLastSlice);
       }
 
+      const targetX = (typeof x === 'number') ? x : 0;
+
       if (activeScroller.isWindow) {
-        window.scrollTo({ left: 0, top: y, behavior: 'instant' });
+        window.scrollTo({ left: targetX, top: y, behavior: 'instant' });
         document.documentElement.scrollTop = y;
+        document.documentElement.scrollLeft = targetX;
         if (document.body) {
           document.body.scrollTop = y;
+          document.body.scrollLeft = targetX;
         }
       } else {
         const el = activeScroller.element;
         el.scrollTop = y;
+        el.scrollLeft = targetX;
         // Trigger synthetic scroll event for reactive SPAs (DeepSeek, Gemini, Twitch, ChatGPT, Google Sheets)
         // Note: bubbles: false prevents window-level reset listeners (e.g. Google Sheets resetting scroll to 0)
         el.dispatchEvent(new Event('scroll', { bubbles: false }));
@@ -1324,30 +1354,42 @@
         }
       }
 
-      // Wait for rendering and dynamic SPA DOM reflow (default 150ms, 250ms for spreadsheets)
-      const effectiveDelay = delayMs || (activeScroller && activeScroller.isSpreadsheet ? 250 : 150);
+      // Detect virtualized feeds (Twitter/X, Slack, Reddit, Discord) to grant sufficient reflow time
+      const isVirtualizedFeed = !!document.querySelector(
+        '[data-virtualized], [data-testid="cellInnerDiv"], [data-testid="tweet"], .ReactVirtualized__Grid, .virtual-scroll, [class*="virtual-list"]'
+      );
+
+      // Wait for rendering and dynamic SPA DOM reflow (default 150ms, 250ms for spreadsheets, 220ms for virtualized feeds)
+      const effectiveDelay = delayMs || (
+        activeScroller && activeScroller.isSpreadsheet ? 250 :
+        isVirtualizedFeed ? 220 : 150
+      );
+
       setTimeout(async () => {
-        // Await visible images to load and decode before capturing slice
+        // Await visible images and canvases to load and decode before capturing slice
         await awaitSliceImagesLoaded();
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             let actualY = y;
+            let actualX = targetX;
             if (activeScroller.isWindow) {
               actualY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+              actualX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
             } else {
               actualY = activeScroller.element.scrollTop || y;
+              actualX = activeScroller.element.scrollLeft || targetX;
             }
 
             if (hideFixed) {
               suppressDynamicFixedElements(isFirstSlice, isLastSlice);
             }
 
-            const links = extractSliceLinks(activeScroller, actualY);
-            resolve({ actualY, links });
+            const links = extractSliceLinks(activeScroller, actualY, actualX);
+            resolve({ actualY, actualX, links });
           });
         });
-      }, delayMs || 150);
+      }, effectiveDelay);
     });
   }
 
@@ -1384,7 +1426,8 @@
         request.isFirstSlice,
         request.isLastSlice,
         request.hideFixedElements,
-        request.delayMs
+        request.delayMs,
+        request.x
       ).then((result) => {
         sendResponse({ status: 'ok', scroll: result });
       }).catch((err) => {

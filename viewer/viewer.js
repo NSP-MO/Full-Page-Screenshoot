@@ -347,8 +347,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     } else {
-      // Standard full page mode (GitHub, Wikipedia, MDN, Instagram, Twitter/X, etc.)
-      const totalCanvasWidth = Math.round(firstImg.naturalWidth);
+      // Standard full page mode (GitHub, Wikipedia, MDN, Instagram, Twitter/X, Kanban, etc.)
+      const isWideHorizontal = loadedImages.some(
+        (item) => item.slice && typeof item.slice.actualX === 'number' && item.slice.actualX > 0
+      );
+      const totalCanvasWidth = isWideHorizontal
+        ? Math.max(
+            ...loadedImages.map(
+              (item) => Math.round(((item.slice && item.slice.actualX) || 0) * dpr) + firstImg.naturalWidth
+            )
+          )
+        : Math.round(firstImg.naturalWidth);
       const maxReach = Math.max(
         ...loadedImages.map((item) => Math.round(item.slice.actualY * dpr) + firstImg.naturalHeight)
       );
@@ -363,73 +372,83 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadingStatusText.textContent = 'Stitching slices into master canvas...';
       }
 
-      const leftSidebarW = Math.round(((metrics && metrics.leftSidebarWidth) || 0) * dpr);
-      const bottomBarH = Math.round(((metrics && metrics.bottomBarHeight) || 0) * dpr);
-
-      // 1. Draw Slice 0 in full at (0, 0)
-      ctx.drawImage(firstImg, 0, 0);
-
-      // 2. If a persistent left sidebar exists and canvas height exceeds viewport:
-      // Extend the sidebar background and vertical divider line down to the bottom of the canvas
-      if (leftSidebarW > 0 && canvas.height > firstImg.naturalHeight) {
-        let sidebarBg = (metrics && metrics.leftSidebarBgColor) || '';
-        if (!sidebarBg || sidebarBg === 'transparent' || sidebarBg === 'rgba(0, 0, 0, 0)') {
-          sidebarBg = pageBgColor;
+      if (isWideHorizontal) {
+        // Render 2D matrix layout across rows and columns (e.g. Trello, Jira boards, wide tables)
+        for (let i = 0; i < loadedImages.length; i++) {
+          const { img, slice } = loadedImages[i];
+          const destinationX = Math.round(((slice && slice.actualX) || 0) * dpr);
+          const destinationY = Math.round(slice.actualY * dpr);
+          ctx.drawImage(img, destinationX, destinationY);
         }
-        let sidebarBorder = (metrics && metrics.leftSidebarBorderColor) || '';
-        const sidebarBorderW = Math.max(1, Math.round(((metrics && metrics.leftSidebarBorderWidth) || 1) * dpr));
-        if (!sidebarBorder || sidebarBorder === 'transparent' || sidebarBorder === 'rgba(0, 0, 0, 0)') {
-          const isDark = isDarkColor(sidebarBg);
-          sidebarBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
-        }
+      } else {
+        const leftSidebarW = Math.round(((metrics && metrics.leftSidebarWidth) || 0) * dpr);
+        const bottomBarH = Math.round(((metrics && metrics.bottomBarHeight) || 0) * dpr);
 
-        const extendStartY = firstImg.naturalHeight - bottomBarH;
-        const targetExtendH = canvas.height - extendStartY;
+        // 1. Draw Slice 0 in full at (0, 0)
+        ctx.drawImage(firstImg, 0, 0);
 
-        if (targetExtendH > 0) {
-          // Fill sidebar extension column with clean background color - NEVER stretch image strips
-          ctx.fillStyle = sidebarBg;
-          ctx.fillRect(0, extendStartY, leftSidebarW, targetExtendH);
-
-          // Draw clean continuous vertical divider line along the right edge of the sidebar
-          ctx.fillStyle = sidebarBorder;
-          ctx.fillRect(leftSidebarW - sidebarBorderW, extendStartY, sidebarBorderW, targetExtendH);
-        }
-      }
-
-      // 3. Draw remaining slices
-      for (let i = 0; i < loadedImages.length; i++) {
-        const { img, slice } = loadedImages[i];
-        const destinationY = Math.round(slice.actualY * dpr);
-
-        if (leftSidebarW > 0) {
-          if (i === 0) {
-            // Slice 0 was already drawn in full above
-            continue;
+        // 2. If a persistent left sidebar exists and canvas height exceeds viewport:
+        // Extend the sidebar background and vertical divider line down to the bottom of the canvas
+        if (leftSidebarW > 0 && canvas.height > firstImg.naturalHeight) {
+          let sidebarBg = (metrics && metrics.leftSidebarBgColor) || '';
+          if (!sidebarBg || sidebarBg === 'transparent' || sidebarBg === 'rgba(0, 0, 0, 0)') {
+            sidebarBg = pageBgColor;
           }
-          // For slices 1..N, draw ONLY the content area to the right of the sidebar
-          // so the extended sidebar background and vertical divider line are preserved!
-          const contentW = firstImg.naturalWidth - leftSidebarW;
-          ctx.drawImage(
-            img,
-            leftSidebarW, 0, contentW, firstImg.naturalHeight,
-            leftSidebarW, destinationY, contentW, firstImg.naturalHeight
-          );
-        } else {
-          ctx.drawImage(img, 0, destinationY);
-        }
-      }
+          let sidebarBorder = (metrics && metrics.leftSidebarBorderColor) || '';
+          const sidebarBorderW = Math.max(1, Math.round(((metrics && metrics.leftSidebarBorderWidth) || 1) * dpr));
+          if (!sidebarBorder || sidebarBorder === 'transparent' || sidebarBorder === 'rgba(0, 0, 0, 0)') {
+            const isDark = isDarkColor(sidebarBg);
+            sidebarBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+          }
 
-      // 4. If bottom bar exists (docked composer / disclaimer / cookie bar), draw from last slice
-      if (bottomBarH > 0 && loadedImages.length > 1) {
-        const lastImg = loadedImages[loadedImages.length - 1].img;
-        const bottomSrcY = firstImg.naturalHeight - bottomBarH;
-        const bottomDestY = canvas.height - bottomBarH;
-        ctx.drawImage(
-          lastImg,
-          0, bottomSrcY, firstImg.naturalWidth, bottomBarH,
-          0, bottomDestY, firstImg.naturalWidth, bottomBarH
-        );
+          const extendStartY = firstImg.naturalHeight - bottomBarH;
+          const targetExtendH = canvas.height - extendStartY;
+
+          if (targetExtendH > 0) {
+            // Fill sidebar extension column with clean background color - NEVER stretch image strips
+            ctx.fillStyle = sidebarBg;
+            ctx.fillRect(0, extendStartY, leftSidebarW, targetExtendH);
+
+            // Draw clean continuous vertical divider line along the right edge of the sidebar
+            ctx.fillStyle = sidebarBorder;
+            ctx.fillRect(leftSidebarW - sidebarBorderW, extendStartY, sidebarBorderW, targetExtendH);
+          }
+        }
+
+        // 3. Draw remaining slices
+        for (let i = 0; i < loadedImages.length; i++) {
+          const { img, slice } = loadedImages[i];
+          const destinationY = Math.round(slice.actualY * dpr);
+
+          if (leftSidebarW > 0) {
+            if (i === 0) {
+              // Slice 0 was already drawn in full above
+              continue;
+            }
+            // For slices 1..N, draw ONLY the content area to the right of the sidebar
+            // so the extended sidebar background and vertical divider line are preserved!
+            const contentW = firstImg.naturalWidth - leftSidebarW;
+            ctx.drawImage(
+              img,
+              leftSidebarW, 0, contentW, firstImg.naturalHeight,
+              leftSidebarW, destinationY, contentW, firstImg.naturalHeight
+            );
+          } else {
+            ctx.drawImage(img, 0, destinationY);
+          }
+        }
+
+        // 4. If bottom bar exists (docked composer / disclaimer / cookie bar), draw from last slice
+        if (bottomBarH > 0 && loadedImages.length > 1) {
+          const lastImg = loadedImages[loadedImages.length - 1].img;
+          const bottomSrcY = firstImg.naturalHeight - bottomBarH;
+          const bottomDestY = canvas.height - bottomBarH;
+          ctx.drawImage(
+            lastImg,
+            0, bottomSrcY, firstImg.naturalWidth, bottomBarH,
+            0, bottomDestY, firstImg.naturalWidth, bottomBarH
+          );
+        }
       }
     }
 
