@@ -111,7 +111,10 @@
         <span class="color-dot active" style="background-color: #ffffff;" data-color="#ffffff" title="Pure White"></span>
         <span class="color-dot" style="background-color: #cbd5e1;" data-color="#cbd5e1" title="Soft Slate"></span>
         <span class="color-dot" style="background-color: #64748b;" data-color="#64748b" title="Medium Charcoal"></span>
-        <span class="color-dot" style="background-color: #0f172a;" data-color="#0f172a" title="Deep Onyx"></span>
+        <span class="color-dot" style="background-color: #0f172a; border: 1px solid #475569;" data-color="#0f172a" title="Deep Onyx"></span>
+        <span class="color-dot" style="background-color: #ef4444;" data-color="#ef4444" title="Crimson Red"></span>
+        <span class="color-dot" style="background-color: #f59e0b;" data-color="#f59e0b" title="Amber"></span>
+        <span class="color-dot" style="background-color: #38bdf8;" data-color="#38bdf8" title="Sky Blue"></span>
       </div>
 
       <div class="toolbar-divider"></div>
@@ -146,6 +149,40 @@
         <div id="canvasWrapper" class="canvas-wrapper hidden">
           <canvas id="screenshotCanvas"></canvas>
           <canvas id="annotationCanvas"></canvas>
+
+          <!-- Interactive Inline Text Editor -->
+          <div id="inlineTextEditor" class="inline-text-editor hidden">
+            <div class="text-editor-toolbar" id="textEditorToolbar">
+              <div class="text-drag-handle" id="textDragHandle" title="Drag to move">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5"></circle><circle cx="15" cy="6" r="1.5"></circle><circle cx="9" cy="12" r="1.5"></circle><circle cx="15" cy="12" r="1.5"></circle><circle cx="9" cy="18" r="1.5"></circle><circle cx="15" cy="18" r="1.5"></circle></svg>
+              </div>
+              <div class="text-size-control">
+                <button type="button" class="text-tool-btn" id="btnTextSizeDec" title="Decrease font size (−)">−</button>
+                <span class="text-size-label" id="textSizeLabel">24px</span>
+                <button type="button" class="text-tool-btn" id="btnTextSizeInc" title="Increase font size (+)">+</button>
+              </div>
+              <div class="text-toolbar-divider"></div>
+              <div class="text-color-picker" id="textColorPicker" title="Font Color">
+                <span class="text-color-dot active" data-color="#ffffff" style="background-color: #ffffff;" title="White font"></span>
+                <span class="text-color-dot" data-color="#cbd5e1" style="background-color: #cbd5e1;" title="Soft Slate font"></span>
+                <span class="text-color-dot" data-color="#64748b" style="background-color: #64748b;" title="Charcoal font"></span>
+                <span class="text-color-dot" data-color="#0f172a" style="background-color: #0f172a; border: 1px solid #475569;" title="Onyx font"></span>
+                <span class="text-color-dot" data-color="#ef4444" style="background-color: #ef4444;" title="Red font"></span>
+                <span class="text-color-dot" data-color="#f59e0b" style="background-color: #f59e0b;" title="Amber font"></span>
+                <span class="text-color-dot" data-color="#38bdf8" style="background-color: #38bdf8;" title="Blue font"></span>
+              </div>
+              <div class="text-toolbar-divider"></div>
+              <div class="text-action-control">
+                <button type="button" class="text-tool-btn text-btn-confirm" id="btnTextConfirm" title="Confirm (Enter)">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </button>
+                <button type="button" class="text-tool-btn text-btn-delete" id="btnTextDelete" title="Delete">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              </div>
+            </div>
+            <textarea id="textEditorInput" class="text-editor-input" placeholder="Type text..." rows="1" spellcheck="false"></textarea>
+          </div>
         </div>
       </div>
     </main>

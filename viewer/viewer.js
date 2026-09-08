@@ -44,6 +44,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const colorDots = document.querySelectorAll('.color-dot');
   const strokeBtns = document.querySelectorAll('.stroke-btn');
 
+  // Inline Interactive Text Editor Elements
+  const inlineTextEditor = document.getElementById('inlineTextEditor');
+  const textEditorToolbar = document.getElementById('textEditorToolbar');
+  const textDragHandle = document.getElementById('textDragHandle');
+  const btnTextSizeDec = document.getElementById('btnTextSizeDec');
+  const textSizeLabel = document.getElementById('textSizeLabel');
+  const btnTextSizeInc = document.getElementById('btnTextSizeInc');
+  const textColorPicker = document.getElementById('textColorPicker');
+  const textColorDots = document.querySelectorAll('.text-color-dot');
+  const btnTextConfirm = document.getElementById('btnTextConfirm');
+  const btnTextDelete = document.getElementById('btnTextDelete');
+  const textEditorInput = document.getElementById('textEditorInput');
+
   let currentZoom = 0.5;
   let sessionData = null;
 
@@ -57,6 +70,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   let startY = 0;
   let currentPath = [];
 
+  // Text Editor State
+  let currentEditingAnnotationIndex = -1;
+  let currentEditingOriginalItem = null;
+  let currentEditingFontSize = 24;
+  let currentEditingColor = '#ffffff';
+  let isEditingText = false;
+
   // Extract Session ID from URL query parameters
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('id');
@@ -67,7 +87,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   try {
-    const storageResult = await chrome.storage.local.get([sessionId]);
+    let storageResult = {};
+    if (window.chrome && chrome.storage && chrome.storage.local) {
+      storageResult = await chrome.storage.local.get([sessionId]);
+    } else if (window.sessionStorage && sessionStorage.getItem(sessionId)) {
+      storageResult[sessionId] = JSON.parse(sessionStorage.getItem(sessionId));
+    } else if (window.localStorage && localStorage.getItem(sessionId)) {
+      storageResult[sessionId] = JSON.parse(localStorage.getItem(sessionId));
+    }
     sessionData = storageResult[sessionId];
 
     if (!sessionData) {
@@ -557,6 +584,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (zoomLevelText) {
       zoomLevelText.textContent = `${Math.round(currentZoom * 100)}%`;
     }
+    if (isEditingText && inlineTextEditor && !inlineTextEditor.classList.contains('hidden')) {
+      updateToolbarPosition(parseFloat(inlineTextEditor.style.top) || 0);
+    }
   }
 
   function zoomAroundPoint(factor, clientX, clientY) {
@@ -645,6 +675,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================
 
   function setActiveTool(tool) {
+    if (activeTool !== tool && isEditingText) {
+      commitActiveTextEditor();
+    }
     activeTool = tool;
     document.querySelectorAll('.anno-btn[data-tool]').forEach((b) => {
       if (b.dataset.tool === tool) {
@@ -675,6 +708,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       colorDots.forEach((d) => d.classList.remove('active'));
       dot.classList.add('active');
       activeColor = dot.dataset.color;
+      if (isEditingText) {
+        updateEditingTextColor(activeColor);
+      }
     });
   });
 
@@ -684,6 +720,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       strokeBtns.forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       activeStrokeWidth = parseInt(btn.dataset.size, 10);
+      if (isEditingText) {
+        const sizeMap = { 2: 16, 4: 24, 8: 36 };
+        updateEditingTextSize(sizeMap[activeStrokeWidth] || 24);
+      }
     });
   });
 
@@ -837,34 +877,356 @@ document.addEventListener('DOMContentLoaded', async () => {
           annoCtx.stroke();
         }
       } else if (item.type === 'text') {
-        annoCtx.font = `bold ${item.fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        const textMetrics = annoCtx.measureText(item.text);
-        const padding = 8;
-        const textH = item.fontSize;
+        annoCtx.font = `bold ${item.fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        const lines = String(item.text || '').split('\n');
+        const lineHeight = Math.round(item.fontSize * 1.25);
 
-        // Background pill badge
-        annoCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-        annoCtx.fillRect(
-          item.x - padding,
-          item.y - textH - padding + 4,
-          textMetrics.width + padding * 2,
-          textH + padding * 2
-        );
-        annoCtx.strokeStyle = item.color;
-        annoCtx.lineWidth = 2;
-        annoCtx.strokeRect(
-          item.x - padding,
-          item.y - textH - padding + 4,
-          textMetrics.width + padding * 2,
-          textH + padding * 2
-        );
-
-        // Text
+        // Draw pure font lines with selected color (zero background box, zero corners)
         annoCtx.fillStyle = item.color;
-        annoCtx.fillText(item.text, item.x, item.y);
+        annoCtx.textBaseline = 'alphabetic';
+        for (let i = 0; i < lines.length; i++) {
+          annoCtx.fillText(lines[i], item.x, item.y + i * lineHeight);
+        }
       }
     }
   }
+
+  // Text Annotation Geometry & Hit-Testing
+  function getTextAnnotationBounds(item) {
+    annoCtx.font = `bold ${item.fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    const lines = String(item.text || '').split('\n');
+    const lineHeight = Math.round(item.fontSize * 1.25);
+    let maxW = 0;
+    for (const line of lines) {
+      const m = annoCtx.measureText(line || ' ');
+      if (m.width > maxW) maxW = m.width;
+    }
+    const totalTextH = Math.max(item.fontSize, lines.length * lineHeight);
+    const hitMargin = 6;
+    return {
+      x: item.x - hitMargin,
+      y: item.y - item.fontSize - hitMargin + 4,
+      width: maxW + hitMargin * 2,
+      height: totalTextH + hitMargin * 2
+    };
+  }
+
+  function findTextAnnotationAt(coords) {
+    for (let i = annotations.length - 1; i >= 0; i--) {
+      const item = annotations[i];
+      if (item.type === 'text') {
+        const b = getTextAnnotationBounds(item);
+        if (
+          coords.x >= b.x &&
+          coords.x <= b.x + b.width &&
+          coords.y >= b.y &&
+          coords.y <= b.y + b.height
+        ) {
+          return { item, index: i, bounds: b };
+        }
+      }
+    }
+    return null;
+  }
+
+  // Interactive Text Editor Engine
+  function autoResizeTextEditor() {
+    if (!textEditorInput) return;
+    textEditorInput.style.width = 'auto';
+    textEditorInput.style.height = 'auto';
+
+    const lines = textEditorInput.value.split('\n');
+    annoCtx.font = `bold ${currentEditingFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    let maxW = 0;
+    for (const line of lines) {
+      const m = annoCtx.measureText(line || ' ');
+      if (m.width > maxW) maxW = m.width;
+    }
+    if (!textEditorInput.value) {
+      const pw = annoCtx.measureText(textEditorInput.placeholder || 'Type text...').width;
+      maxW = Math.max(maxW, pw);
+    }
+    const padding = 4;
+    const targetW = Math.max(80, Math.ceil(maxW + padding * 2 + 16));
+    const lineHeight = Math.round(currentEditingFontSize * 1.25);
+    const targetH = Math.max(lineHeight + padding * 2, textEditorInput.scrollHeight);
+
+    textEditorInput.style.width = `${targetW}px`;
+    textEditorInput.style.height = `${targetH}px`;
+  }
+
+  let lastTextEditorOpenTime = 0;
+
+  function updateToolbarPosition(badgeTop) {
+    if (!textEditorToolbar) return;
+    const invScale = currentZoom > 0 ? (1 / currentZoom) : 1;
+    if (badgeTop < 45) {
+      textEditorToolbar.classList.add('toolbar-bottom');
+      textEditorToolbar.style.transform = `scale(${invScale})`;
+      textEditorToolbar.style.transformOrigin = '0 0';
+    } else {
+      textEditorToolbar.classList.remove('toolbar-bottom');
+      textEditorToolbar.style.transform = `scale(${invScale})`;
+      textEditorToolbar.style.transformOrigin = '0 100%';
+    }
+  }
+
+  function updateEditorVisuals() {
+    if (!inlineTextEditor || !textEditorInput) return;
+    textEditorInput.style.fontSize = `${currentEditingFontSize}px`;
+    textEditorInput.style.color = currentEditingColor;
+    if (textSizeLabel) {
+      textSizeLabel.textContent = `${currentEditingFontSize}px`;
+    }
+    if (textColorDots) {
+      textColorDots.forEach((dot) => {
+        if (dot.dataset && dot.dataset.color && dot.dataset.color.toLowerCase() === currentEditingColor.toLowerCase()) {
+          dot.classList.add('active');
+        } else {
+          dot.classList.remove('active');
+        }
+      });
+    }
+    autoResizeTextEditor();
+  }
+
+  function updateEditingTextColor(color) {
+    currentEditingColor = color;
+    updateEditorVisuals();
+  }
+
+  function updateEditingTextSize(size) {
+    currentEditingFontSize = Math.max(12, Math.min(96, size));
+    updateEditorVisuals();
+  }
+
+  function openTextEditor(x, y, existingItem = null, existingIndex = -1) {
+    if (isEditingText) {
+      commitActiveTextEditor(true);
+    }
+    isEditingText = true;
+    lastTextEditorOpenTime = Date.now();
+
+    if (existingItem) {
+      currentEditingAnnotationIndex = existingIndex;
+      currentEditingOriginalItem = { ...existingItem };
+      currentEditingFontSize = existingItem.fontSize || 24;
+      currentEditingColor = existingItem.color || '#ffffff';
+
+      // Temporarily remove from annotations so canvas renders clean underneath
+      annotations.splice(existingIndex, 1);
+      redrawAnnotations();
+
+      const padding = 4;
+      const editorLeft = existingItem.x - padding;
+      const editorTop = existingItem.y - currentEditingFontSize - padding + 4;
+      inlineTextEditor.style.left = `${Math.max(0, Math.round(editorLeft))}px`;
+      inlineTextEditor.style.top = `${Math.max(0, Math.round(editorTop))}px`;
+      updateToolbarPosition(editorTop);
+
+      textEditorInput.value = existingItem.text || '';
+    } else {
+      currentEditingAnnotationIndex = -1;
+      currentEditingOriginalItem = null;
+
+      const sizeMap = { 2: 16, 4: 24, 8: 36 };
+      currentEditingFontSize = sizeMap[activeStrokeWidth] || 24;
+      currentEditingColor = activeColor || '#ffffff';
+
+      const padding = 4;
+      const editorLeft = x - padding;
+      const editorTop = y - padding + 4;
+      inlineTextEditor.style.left = `${Math.max(0, Math.round(editorLeft))}px`;
+      inlineTextEditor.style.top = `${Math.max(0, Math.round(editorTop))}px`;
+      updateToolbarPosition(editorTop);
+
+      textEditorInput.value = '';
+    }
+
+    inlineTextEditor.classList.remove('hidden');
+    updateEditorVisuals();
+
+    setTimeout(() => {
+      if (textEditorInput) {
+        textEditorInput.focus();
+        if (existingItem) {
+          textEditorInput.select();
+        }
+      }
+    }, 10);
+  }
+
+  function commitActiveTextEditor(force = false) {
+    if (!isEditingText || !inlineTextEditor || inlineTextEditor.classList.contains('hidden')) return;
+    if (!force && Date.now() - lastTextEditorOpenTime < 250) return;
+
+    const val = textEditorInput.value.trim();
+    if (val) {
+      const padding = 4;
+      const left = parseFloat(inlineTextEditor.style.left) || 0;
+      const top = parseFloat(inlineTextEditor.style.top) || 0;
+      const newX = left + padding;
+      const newY = top + currentEditingFontSize + padding - 4;
+
+      const newItem = {
+        type: 'text',
+        x: newX,
+        y: newY,
+        text: val,
+        color: currentEditingColor,
+        fontSize: currentEditingFontSize
+      };
+
+      if (currentEditingAnnotationIndex >= 0 && currentEditingAnnotationIndex <= annotations.length) {
+        annotations.splice(currentEditingAnnotationIndex, 0, newItem);
+      } else {
+        annotations.push(newItem);
+      }
+    }
+
+    inlineTextEditor.classList.add('hidden');
+    isEditingText = false;
+    currentEditingAnnotationIndex = -1;
+    currentEditingOriginalItem = null;
+    redrawAnnotations();
+  }
+
+  function cancelActiveTextEditor() {
+    if (!isEditingText || !inlineTextEditor || inlineTextEditor.classList.contains('hidden')) return;
+
+    if (currentEditingOriginalItem) {
+      if (currentEditingAnnotationIndex >= 0 && currentEditingAnnotationIndex <= annotations.length) {
+        annotations.splice(currentEditingAnnotationIndex, 0, currentEditingOriginalItem);
+      } else {
+        annotations.push(currentEditingOriginalItem);
+      }
+    }
+
+    inlineTextEditor.classList.add('hidden');
+    isEditingText = false;
+    currentEditingAnnotationIndex = -1;
+    currentEditingOriginalItem = null;
+    redrawAnnotations();
+  }
+
+  function deleteActiveTextEditor() {
+    if (!isEditingText || !inlineTextEditor || inlineTextEditor.classList.contains('hidden')) return;
+
+    inlineTextEditor.classList.add('hidden');
+    isEditingText = false;
+    currentEditingAnnotationIndex = -1;
+    currentEditingOriginalItem = null;
+    redrawAnnotations();
+    showToast('Text annotation deleted');
+  }
+
+  // Inline Text Editor Controls Listeners
+  if (btnTextSizeInc) {
+    btnTextSizeInc.addEventListener('mousedown', (e) => e.preventDefault());
+    btnTextSizeInc.addEventListener('click', (e) => {
+      e.stopPropagation();
+      updateEditingTextSize(currentEditingFontSize + 4);
+    });
+  }
+
+  if (btnTextSizeDec) {
+    btnTextSizeDec.addEventListener('mousedown', (e) => e.preventDefault());
+    btnTextSizeDec.addEventListener('click', (e) => {
+      e.stopPropagation();
+      updateEditingTextSize(currentEditingFontSize - 4);
+    });
+  }
+
+  if (btnTextConfirm) {
+    btnTextConfirm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      commitActiveTextEditor(true);
+    });
+  }
+
+  if (btnTextDelete) {
+    btnTextDelete.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteActiveTextEditor();
+    });
+  }
+
+  if (textColorDots) {
+    textColorDots.forEach((dot) => {
+      dot.addEventListener('mousedown', (e) => e.preventDefault());
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateEditingTextColor(dot.dataset.color);
+      });
+    });
+  }
+
+  if (textEditorInput) {
+    textEditorInput.addEventListener('input', autoResizeTextEditor);
+    textEditorInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        commitActiveTextEditor(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelActiveTextEditor();
+      }
+    });
+  }
+
+  // Drag text editor to reposition
+  let isDraggingTextEditor = false;
+  let dragEditorStartX = 0;
+  let dragEditorStartY = 0;
+  let initialBadgeLeft = 0;
+  let initialBadgeTop = 0;
+
+  if (textDragHandle) {
+    textDragHandle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingTextEditor = true;
+      dragEditorStartX = e.clientX;
+      dragEditorStartY = e.clientY;
+      initialBadgeLeft = parseFloat(inlineTextEditor.style.left) || 0;
+      initialBadgeTop = parseFloat(inlineTextEditor.style.top) || 0;
+      document.body.style.cursor = 'grabbing';
+    });
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDraggingTextEditor) return;
+    const dx = (e.clientX - dragEditorStartX) / currentZoom;
+    const dy = (e.clientY - dragEditorStartY) / currentZoom;
+    const newLeft = Math.max(0, Math.min(canvas.width - 50, initialBadgeLeft + dx));
+    const newTop = Math.max(0, Math.min(canvas.height - 30, initialBadgeTop + dy));
+    inlineTextEditor.style.left = `${newLeft}px`;
+    inlineTextEditor.style.top = `${newTop}px`;
+    updateToolbarPosition(newTop);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDraggingTextEditor) {
+      isDraggingTextEditor = false;
+      document.body.style.cursor = '';
+    }
+  });
+
+  if (inlineTextEditor) {
+    inlineTextEditor.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  // Click outside text editor commits changes
+  window.addEventListener('mousedown', (e) => {
+    if (!isEditingText) return;
+    if (Date.now() - lastTextEditorOpenTime < 250) return;
+    if (inlineTextEditor && (inlineTextEditor.contains(e.target) || e.target === inlineTextEditor)) return;
+    if (e.target === annoCanvas) return;
+    if (e.target && e.target.closest && (e.target.closest('#annotationToolbar') || e.target.closest('.view-controls') || e.target.closest('.action-controls'))) return;
+    commitActiveTextEditor(true);
+  });
 
   // Panning state for Select mode or middle-click drag
   let isPanning = false;
@@ -875,6 +1237,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Mouse Interaction on Annotation Canvas
   annoCanvas.addEventListener('mousedown', (e) => {
+    if (inlineTextEditor && inlineTextEditor.contains(e.target)) return;
+
+    const coords = getCanvasCoords(e);
+
+    // 1. Text tool interaction: direct interactive click or edit existing
+    if (activeTool === 'text' && e.button === 0) {
+      e.stopPropagation();
+      const hit = findTextAnnotationAt(coords);
+      if (hit) {
+        openTextEditor(coords.x, coords.y, hit.item, hit.index);
+        return;
+      }
+      openTextEditor(coords.x, coords.y);
+      return;
+    }
+
+    // 2. Select tool interaction: click on text to edit
+    if (activeTool === 'select' && e.button === 0) {
+      const hit = findTextAnnotationAt(coords);
+      if (hit) {
+        e.stopPropagation();
+        openTextEditor(coords.x, coords.y, hit.item, hit.index);
+        return;
+      }
+    }
+
+    // Commit any active text editor if clicking canvas with another tool or empty space
+    if (isEditingText) {
+      commitActiveTextEditor(true);
+    }
+
     if (activeTool === 'select' || e.button === 1) {
       isPanning = true;
       panStartX = e.clientX;
@@ -885,27 +1278,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const coords = getCanvasCoords(e);
     isDrawing = true;
     startX = coords.x;
     startY = coords.y;
 
     if (activeTool === 'pen') {
       currentPath = [{ x: startX, y: startY }];
-    } else if (activeTool === 'text') {
-      const userText = prompt('Enter annotation text:');
-      if (userText && userText.trim()) {
-        annotations.push({
-          type: 'text',
-          x: startX,
-          y: startY,
-          text: userText.trim(),
-          color: activeColor,
-          fontSize: Math.max(16, activeStrokeWidth * 4)
-        });
-        redrawAnnotations();
-      }
-      isDrawing = false;
+    }
+  });
+
+  annoCanvas.addEventListener('dblclick', (e) => {
+    const coords = getCanvasCoords(e);
+    const hit = findTextAnnotationAt(coords);
+    if (hit) {
+      openTextEditor(coords.x, coords.y, hit.item, hit.index);
     }
   });
 
@@ -915,9 +1301,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       workspace.scrollTop = scrollStartY - (e.clientY - panStartY);
       return;
     }
-    if (!isDrawing) return;
 
     const coords = getCanvasCoords(e);
+
+    // Dynamic hover cursor over text annotations
+    if (!isDrawing && (activeTool === 'text' || activeTool === 'select')) {
+      const hit = findTextAnnotationAt(coords);
+      if (hit) {
+        annoCanvas.style.cursor = 'pointer';
+        return;
+      }
+      annoCanvas.style.cursor = activeTool === 'select' ? 'grab' : 'text';
+    }
+
+    if (!isDrawing) return;
+
     redrawAnnotations();
 
     const curX = coords.x;
@@ -1050,6 +1448,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Undo & Clear
   function undoLastAnnotation() {
+    if (isEditingText) {
+      cancelActiveTextEditor();
+      return;
+    }
     if (annotations.length > 0) {
       annotations.pop();
       redrawAnnotations();
@@ -1061,6 +1463,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (btnClearAnno) {
     btnClearAnno.addEventListener('click', () => {
+      if (isEditingText) {
+        cancelActiveTextEditor();
+      }
       if (annotations.length > 0) {
         annotations = [];
         redrawAnnotations();
@@ -1109,6 +1514,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Merge base canvas and annotations into a single output canvas
   function getFlattenedCanvas() {
+    if (isEditingText) {
+      commitActiveTextEditor();
+    }
     const flatCanvas = document.createElement('canvas');
     flatCanvas.width = canvas.width;
     flatCanvas.height = canvas.height;
