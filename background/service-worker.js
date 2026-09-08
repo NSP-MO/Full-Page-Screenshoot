@@ -85,8 +85,10 @@ function isSupportedUrl(url) {
     lower.startsWith('about:') ||
     lower.startsWith('view-source:') ||
     lower.startsWith('devtools://') ||
+    lower.startsWith('moz-extension://') ||
     lower.includes('chromewebstore.google.com') ||
-    lower.includes('chrome.google.com/webstore')
+    lower.includes('chrome.google.com/webstore') ||
+    lower.includes('addons.mozilla.org')
   );
 }
 

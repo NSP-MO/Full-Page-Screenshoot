@@ -1,10 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "Full Page Screenshot - No Ads, No Telemetry",
+  "name": "Full Page Screenshot",
   "version": "1.0.0",
-  "description": "No ads, no paywall, no telemetry. It gets work done: 1-click full-page capture, markup tools, blur edit, and PDF/PNG export.",
+  "description": "One-click full-page screenshot capture, markup annotations, blur redaction, and PDF/PNG export.",
   "author": "NSP-MO",
   "homepage_url": "https://github.com/NSP-MO/Full-Page-Screenshoot",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "full-page-screenshot@nsp-mo.github.io",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
   "permissions": [
     "activeTab",
     "scripting",
@@ -32,7 +42,9 @@
     "128": "icons/icon128.png"
   },
   "background": {
-    "service_worker": "background/service-worker.js"
+    "scripts": [
+      "background/service-worker.js"
+    ]
   },
   "content_scripts": [
     {

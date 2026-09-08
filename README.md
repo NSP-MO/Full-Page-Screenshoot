@@ -1,6 +1,6 @@
 # Full Page Screenshoot
 
-A high-performance Chromium / Brave browser extension designed for one-click, pixel-perfect full webpage screen captures. Built on native browser compositor APIs with automatic sequential scrolling, universal single-page application (SPA) container detection, and an integrated preview viewer featuring continuous single-page and paginated multi-page A4 PDF export, lossless PNG downloading, clipboard copying, and redaction tools (Gaussian Blur and Mosaic Censor).
+A high-performance Mozilla Firefox and Chromium browser extension designed for one-click, pixel-perfect full webpage screen captures. Built on native browser compositor APIs with automatic sequential scrolling, universal single-page application (SPA) container detection, and an integrated preview viewer featuring continuous single-page and paginated multi-page A4 PDF export, lossless PNG downloading, clipboard copying, and redaction tools (Gaussian Blur and Mosaic Censor).
 
 <p align="center">
   <img src="assets/demo.gif" alt="Full Page Screenshoot Demo" width="100%">
@@ -12,7 +12,7 @@ A high-performance Chromium / Brave browser extension designed for one-click, pi
 
 ### 1. Native Compositor Capture Engine
 - **100% Native Visual Fidelity**: Renders modern CSS Color Module 4 (`color(srgb ...)`, `oklch()`, `lab()`), WebGL, Canvas, custom typography, SVGs, and dynamic stylesheets without relying on fragile third-party DOM parsers.
-- **Strict Rate-Limit Protection**: Enforces an optimized 520 ms pipelined capture interval with exponential backoff, preventing Chromium `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND` quota errors.
+- **Strict Rate-Limit Protection**: Enforces an optimized 520 ms pipelined capture interval with exponential backoff, preventing browser `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND` quota errors.
 - **Dynamic Fixed Header Suppression**: Automatically detects and hides `position: fixed` and `position: sticky` elements on subsequent scroll slices to prevent visual duplication.
 - **Invisible Scrollbars**: Hides browser scrollbars visually during capture without locking root overflow scrolling.
 
@@ -44,7 +44,7 @@ A high-performance Chromium / Brave browser extension designed for one-click, pi
 ## Directory Structure
 
 ```
-f:/full-page-screenshot/
+full-page-screenshot/
 ├── manifest.json              # Manifest V3 extension configuration
 ├── assets/
 │   └── demo.gif               # Animated demonstration recording
@@ -68,15 +68,18 @@ f:/full-page-screenshot/
 
 ## Installation & Setup
 
-1. Clone or download the repository:
-   ```bash
-   git clone https://github.com/NSP-MO/Full-Page-Screenshoot.git
-   ```
-2. Open your Chromium-based browser (Brave, Google Chrome, Microsoft Edge).
-3. Navigate to `brave://extensions` (or `chrome://extensions`).
-4. Enable **Developer mode** toggle in the top right corner.
-5. Click **Load unpacked** and select the `f:/full-page-screenshot` directory.
-6. The extension icon will appear in your browser toolbar ready for one-click capture.
+### Mozilla Firefox
+1. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on...**.
+3. Select the `manifest.json` file inside the extension directory.
+4. The extension icon will appear in your browser toolbar ready for one-click capture.
+
+### Chromium / Brave / Google Chrome
+1. Open your Chromium-based browser (Brave, Google Chrome, Microsoft Edge).
+2. Navigate to `brave://extensions` (or `chrome://extensions`).
+3. Enable the **Developer mode** toggle in the top right corner.
+4. Click **Load unpacked** and select the repository directory.
+5. The extension icon will appear in your browser toolbar ready for one-click capture.
 
 ---
 

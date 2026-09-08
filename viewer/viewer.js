@@ -514,7 +514,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function showError(msg) {
     if (loadingState) {
-      loadingState.innerHTML = `<p style="color: #f87171; font-weight: 600;">${msg}</p>`;
+      loadingState.textContent = '';
+      const p = document.createElement('p');
+      p.style.color = '#f87171';
+      p.style.fontWeight = '600';
+      p.textContent = msg;
+      loadingState.appendChild(p);
     }
   }
 
