@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Full Page Screenshot - No Ads, No Telemetry",
   "version": "1.0.0",
-  "description": "Full-page screenshots that just work. No ads, no telemetry. Instant capture with built-in preview, annotations, copy, and export.",
+  "description": "No ads, no paywall, no telemetry. It gets work done: 1-click full-page capture, markup tools, blur edit, and PDF/PNG export.",
   "author": "NSP-MO",
   "homepage_url": "https://github.com/NSP-MO/Full-Page-Screenshoot",
   "permissions": [

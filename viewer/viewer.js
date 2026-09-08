@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const colorDots = document.querySelectorAll('.color-dot');
   const strokeBtns = document.querySelectorAll('.stroke-btn');
 
-  let currentZoom = 1.0;
+  let currentZoom = 0.5;
   let sessionData = null;
 
   // Annotation State (Default palette: Pure White #ffffff)
@@ -107,8 +107,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (loadingState) loadingState.classList.add('hidden');
     if (canvasWrapper) canvasWrapper.classList.remove('hidden');
 
-    // Auto-fit to width on initial display
-    fitToWidth();
+    // Set default preview zoom to 50%
+    setZoom(0.5);
+    workspace.scrollLeft = 0;
+    workspace.scrollTop = 0;
 
     // Automatically copy screenshot to clipboard upon completion
     copyToClipboard(true);
