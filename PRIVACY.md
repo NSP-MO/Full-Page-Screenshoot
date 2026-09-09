@@ -32,7 +32,6 @@ The Extension requests specific browser permissions strictly to perform its core
 - **`downloads`**: Enables saving exported files (PNG images, Single-Page PDFs, and Multi-Page A4 PDFs) directly to the user's local file system.
 - **`storage` and `unlimitedStorage`**: Provides sufficient local browser memory allocation to assemble and preserve high-resolution full-page canvas data during an active session.
 - **`clipboardWrite`**: Allows the Extension to copy the rendered screenshot image directly to the system clipboard upon capture.
-- **Host Permissions (`<all_urls>`)**: Enables the Extension to execute the sequential scroll capture process across arbitrary web domains when initiated by the user. The Extension never accesses pages in the background without user initiation.
 
 ---
 
