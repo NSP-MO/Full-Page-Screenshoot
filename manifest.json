@@ -23,9 +23,6 @@
     "unlimitedStorage",
     "clipboardWrite"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
@@ -45,30 +42,5 @@
     "scripts": [
       "background/service-worker.js"
     ]
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "css": [
-        "content/content.css"
-      ],
-      "js": [
-        "content/content.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "viewer/viewer.html",
-        "icons/*"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  }
 }

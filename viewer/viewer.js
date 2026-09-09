@@ -2306,15 +2306,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     return new Blob(parts, { type: 'application/pdf' });
   }
 
-  // Continuous PDF Download Action
+  // Single-Page PDF Download Action
   async function triggerContinuousPdfDownload() {
-    showToast('Generating single-page continuous PDF...');
+    showToast('Generating single-page PDF...');
     try {
       const flatCanvas = getFlattenedCanvas();
       const pdfBlob = await createContinuousPdfBlob(flatCanvas);
       const filename = generateFilename('pdf');
       await downloadBlob(pdfBlob, filename);
-      showToast('Continuous PDF downloaded successfully!');
+      showToast('Single-Page PDF downloaded successfully!');
     } catch (err) {
       console.error(err);
       showToast('Failed to generate PDF: ' + err.message);
