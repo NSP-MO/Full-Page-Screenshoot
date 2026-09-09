@@ -46,6 +46,7 @@ A high-performance Chromium / Brave browser extension designed for one-click, pi
 ```
 f:/full-page-screenshot/
 ├── manifest.json              # Manifest V3 extension configuration
+├── PRIVACY.md                 # Chrome Web Store compliance & privacy policy
 ├── assets/
 │   └── demo.gif               # Animated demonstration recording
 ├── background/
