@@ -1,6 +1,6 @@
 # Full Page Screenshoot
 
-A high-performance Chromium / Brave browser extension designed for one-click, pixel-perfect full webpage screen captures. Built on native browser compositor APIs with automatic sequential scrolling, universal single-page application (SPA) container detection, and an integrated preview viewer featuring continuous single-page and paginated multi-page A4 PDF export, lossless PNG downloading, clipboard copying, and redaction tools (Gaussian Blur and Mosaic Censor).
+A high-performance Chromium / Brave browser extension designed for one-click, pixel-perfect full webpage screen captures. Built on native browser compositor APIs with automatic sequential scrolling, universal single-page application (SPA) container detection, and an integrated preview viewer featuring single-page and multi-page A4 PDF export, lossless PNG downloading, clipboard copying, and redaction tools (Gaussian Blur and Mosaic Censor).
 
 <p align="center">
   <img src="assets/demo.gif" alt="Full Page Screenshoot Demo" width="100%">
@@ -35,8 +35,8 @@ A high-performance Chromium / Brave browser extension designed for one-click, pi
 ### 4. Versatile Export Handlers
 - **Lossless PNG Export**: Generates full-resolution PNG images with flattened annotation layers.
 - **JPEG Export**: Configurable quality level.
-- **Single-Page Continuous PDF**: Compliant standard PDF 1.4 containing the entire webpage in one continuous canvas stream.
-- **Multi-Page Paginated A4 PDF**: Divides long screenshots into standard A4 pages with printable margins for documentation and printing.
+- **Single-Page PDF**: Compliant standard PDF 1.4 containing the entire webpage in one continuous canvas stream.
+- **Multi-Page A4 PDF**: Divides long screenshots into standard A4 pages with printable margins for documentation and printing.
 - **Clipboard Copy**: Copies the full-resolution PNG directly to the system clipboard for immediate pasting.
 
 ---
@@ -85,4 +85,4 @@ f:/full-page-screenshot/
 1. Open any webpage or document (e.g. GitHub repository, Google Docs, Gmail thread).
 2. Click the **Full Page Screenshoot** icon in the browser toolbar.
 3. The extension will automatically scroll and capture all slices.
-4. A new preview tab will open with the screenshot copied to your clipboard, offering zoom, redaction tools, and export options (PNG, Continuous PDF, Multi-Page A4 PDF, Copy to Clipboard).
+4. A new preview tab will open with the screenshot copied to your clipboard, offering zoom, redaction tools, and export options (PNG, Single-Page PDF, Multi-Page A4 PDF, Copy to Clipboard).
