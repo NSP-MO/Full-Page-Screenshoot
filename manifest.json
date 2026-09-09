@@ -30,30 +30,5 @@
   },
   "background": {
     "service_worker": "background/service-worker.js"
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "css": [
-        "content/content.css"
-      ],
-      "js": [
-        "content/content.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "viewer/viewer.html",
-        "icons/*"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  }
 }
