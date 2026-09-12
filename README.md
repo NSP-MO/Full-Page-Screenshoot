@@ -1,6 +1,15 @@
 # Full Page Screenshoot
 
-A high-performance Chromium / Brave browser extension designed for one-click, pixel-perfect full webpage screen captures. Built on native browser compositor APIs with automatic sequential scrolling, universal single-page application (SPA) container detection, and an integrated preview viewer featuring single-page and multi-page A4 PDF export, lossless PNG downloading, clipboard copying, and redaction tools (Gaussian Blur and Mosaic Censor).
+A high-performance browser extension designed for one-click, pixel-perfect full webpage screen captures across Chromium and Firefox. Built on native browser compositor APIs with automatic sequential scrolling, universal single-page application (SPA) container detection, and an integrated preview viewer featuring single-page and multi-page A4 PDF export, lossless PNG downloading, clipboard copying, and redaction tools (Gaussian Blur and Mosaic Censor).
+
+<p align="center">
+  <a href="https://chromewebstore.google.com/detail/full-page-screenshot-no-a/nenacnkfpndjdjlmdaeclepmjnnogleb">
+    <img src="https://img.shields.io/badge/Chrome_Web_Store-Full_Page_Screenshot-4285F4?logo=googlechrome&logoColor=white" alt="Chrome Web Store">
+  </a>
+  <a href="https://addons.mozilla.org/en-US/firefox/addon/full-page-screenshot-no-ads/">
+    <img src="https://img.shields.io/badge/Firefox_Add--ons-Full_Page_Screenshot-FF7139?logo=firefoxbrowser&logoColor=white" alt="Firefox Add-ons">
+  </a>
+</p>
 
 <p align="center">
   <img src="assets/demo.gif" alt="Full Page Screenshoot Demo" width="100%">
@@ -69,14 +78,22 @@ f:/full-page-screenshot/
 
 ## Installation & Setup
 
+### Install from Web Store
+
+Install directly from the official extension stores:
+- **Chrome Web Store** (Google Chrome, Brave, Microsoft Edge, Opera): [Full Page Screenshot (No Ads)](https://chromewebstore.google.com/detail/full-page-screenshot-no-a/nenacnkfpndjdjlmdaeclepmjnnogleb)
+- **Firefox Add-ons** (Mozilla Firefox): [Full Page Screenshot (No Ads)](https://addons.mozilla.org/en-US/firefox/addon/full-page-screenshot-no-ads/)
+
+### Manual Installation (Developer Mode)
+
 1. Clone or download the repository:
    ```bash
    git clone https://github.com/NSP-MO/Full-Page-Screenshoot.git
    ```
 2. Open your Chromium-based browser (Brave, Google Chrome, Microsoft Edge).
-3. Navigate to `brave://extensions` (or `chrome://extensions`).
-4. Enable **Developer mode** toggle in the top right corner.
-5. Click **Load unpacked** and select the `f:/full-page-screenshot` directory.
+3. Navigate to `chrome://extensions` or `brave://extensions`.
+4. Enable the **Developer mode** toggle in the top right corner.
+5. Click **Load unpacked** and select the extension repository root folder.
 6. The extension icon will appear in your browser toolbar ready for one-click capture.
 
 ---
